@@ -4,6 +4,7 @@ import { ConvexClientProvider } from "./convex-provider";
 import { AppAuthProvider } from "@/lib/app-auth";
 import { AnalyticsProvider } from "@/lib/analytics-provider";
 import { LocalSetupGate } from "./local-setup-gate";
+import { ThemeSync } from "@/components/ThemeToggle";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -47,6 +48,7 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
       <body className="min-h-full flex flex-col theme-transition">
+        <ThemeSync />
         <AppAuthProvider>
           <ConvexClientProvider>
             <AnalyticsProvider>

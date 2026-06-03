@@ -3,10 +3,8 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Bot,
   CheckCircle2,
   ExternalLink,
-  Fish,
   KeyRound,
   Loader2,
   X,
@@ -50,46 +48,53 @@ export default function SetupPage() {
 
   return (
     <div className="flex flex-1 flex-col">
-      <header className="border-b border-border px-6 py-3 flex items-center justify-between bg-surface">
+      <header className="border-b border-border bg-surface px-6 py-3">
         <img src="/BigSetLogo.png" alt="BigSet" className="h-[30px] dark:hidden" />
         <img src="/BigSetLogoDarkBG.png" alt="BigSet" className="h-[30px] hidden dark:block" />
-        <span className="text-xs text-muted">Local setup</span>
       </header>
 
-      <main className="flex-1 px-6 py-12">
-        <div className="mx-auto w-full max-w-3xl">
-          <div className="mb-8">
-            <p className="text-[11px] uppercase tracking-[0.15em] text-muted font-semibold">
-              BigSet local
-            </p>
-            <h1 className="mt-2 text-[30px] font-bold tracking-tight leading-none">
+      <main className="flex-1 px-5 py-10 sm:px-6 sm:py-12">
+        <div className="mx-auto w-full max-w-4xl">
+          <div className="mb-8 max-w-2xl">
+            <h1 className="text-[32px] font-bold leading-none tracking-tight sm:text-[38px]">
               Connect your services
             </h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">
-              This local copy uses one workspace. Add your own TinyFish
-              and OpenRouter credentials here; the cloud build still uses env
-              configuration when <span className="font-mono">PROD=1</span>.
+            <p className="mt-3 text-base leading-7 text-muted">
+              Add TinyFish and OpenRouter access to start building live
+              datasets.
             </p>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4">
             <ServiceCard
-              icon={<Fish className="size-5" />}
-              title="TinyFish"
-              description="Search and fetch APIs for live dataset population."
+              brand={
+                <>
+                  <img
+                    src="https://www.tinyfish.ai/TF-Logos/Horizontal%20Logo/SVG/TF_Horizontal.svg"
+                    alt="TinyFish"
+                    className="h-8 w-auto dark:hidden"
+                  />
+                  <img
+                    src="/logos/engines/tinyfish-wordmark-dark.svg"
+                    alt="TinyFish"
+                    className="hidden h-8 w-auto dark:block"
+                  />
+                </>
+              }
+              description="BigSet uses TinyFish's best-in-class search API to unlock real-time information."
               status={status?.services.tinyfish}
               primaryLabel={
                 status?.services.tinyfish.configured ? "Update key" : "Add API key"
               }
               onPrimary={() => setModal("tinyfish")}
               helperHref="https://agent.tinyfish.ai/api-keys?utm_source=github&utm_medium=organic&utm_campaign=bigset-developer-2026q2"
-              helperLabel="Get a TinyFish key"
+              helperLabel="Need a TinyFish key?"
+              helperDescription="Open the TinyFish API keys page"
             />
 
             <ServiceCard
-              icon={<Bot className="size-5" />}
-              title="OpenRouter"
-              description="Model access for schema inference and agents."
+              brand={<OpenRouterBrand />}
+              description="BigSet uses OpenRouter's API to power BigSet with AI model access."
               status={status?.services.openrouter}
               primaryLabel={
                 status?.services.openrouter.configured
@@ -102,12 +107,13 @@ export default function SetupPage() {
               secondaryLabel="Use API key"
               onSecondary={() => setModal("openrouter")}
               helperHref="https://openrouter.ai/settings/keys"
-              helperLabel="OpenRouter keys"
+              helperLabel="Need an OpenRouter key?"
+              helperDescription="Open the OpenRouter keys page"
             />
           </div>
 
-          <div className="mt-8 flex items-center justify-between gap-4 border-t border-border pt-5">
-            <p className="text-xs text-muted">
+          <div className="mt-8 flex flex-col gap-4 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm leading-6 text-muted sm:text-base">
               {complete
                 ? "Everything is connected. You can start building datasets."
                 : "Complete both connections to continue."}
@@ -140,8 +146,7 @@ export default function SetupPage() {
 }
 
 function ServiceCard({
-  icon,
-  title,
+  brand,
   description,
   status,
   primaryLabel,
@@ -150,9 +155,9 @@ function ServiceCard({
   onSecondary,
   helperHref,
   helperLabel,
+  helperDescription,
 }: {
-  icon: ReactNode;
-  title: string;
+  brand: ReactNode;
   description: string;
   status?: ServiceSetupStatus;
   primaryLabel: string;
@@ -161,6 +166,7 @@ function ServiceCard({
   onSecondary?: () => void;
   helperHref: string;
   helperLabel: string;
+  helperDescription: string;
 }) {
   const connected = status?.configured ?? false;
   const detail = useMemo(() => {
@@ -171,62 +177,83 @@ function ServiceCard({
   }, [connected, status?.connectionMethod, status?.source]);
 
   return (
-    <section className="border border-border bg-surface p-5">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <span className="flex size-9 items-center justify-center rounded-lg border border-border bg-background text-foreground">
-            {icon}
-          </span>
-          <div>
-            <h2 className="text-base font-semibold tracking-tight">{title}</h2>
-            <p className="mt-0.5 text-xs text-muted">{detail}</p>
-          </div>
+    <section className="border border-border bg-surface p-5 sm:p-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <div className="flex h-9 items-center">{brand}</div>
+          <p className="mt-2 text-sm text-muted">{detail}</p>
         </div>
-        <span
-          className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium ${
-            connected
-              ? "border-green-500/30 text-green-700 dark:text-green-400"
-              : "border-border text-muted"
-          }`}
-        >
-          {connected && <CheckCircle2 className="size-3" />}
-          {connected ? "Connected" : "Required"}
-        </span>
+        {connected && (
+          <span className="inline-flex items-center gap-1.5 text-sm font-medium text-green-700 dark:text-green-400">
+            <CheckCircle2 className="size-4" />
+            Connected
+          </span>
+        )}
       </div>
 
-      <p className="mt-5 min-h-10 text-sm leading-5 text-foreground/80">
+      <p className="mt-6 max-w-2xl text-base leading-7 text-foreground/80">
         {description}
       </p>
 
-      <div className="mt-5 flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={onPrimary}
-          className="inline-flex items-center gap-2 rounded-lg border border-accent bg-accent px-3 py-2 text-xs font-semibold text-accent-text transition-opacity hover:opacity-90"
-        >
-          <KeyRound className="size-3.5" />
-          {primaryLabel}
-        </button>
-        {secondaryLabel && onSecondary && (
+      <div className="mt-6 flex flex-col gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={onSecondary}
-            className="rounded-lg border border-border px-3 py-2 text-xs font-medium text-foreground hover:bg-foreground/[0.04]"
+            onClick={onPrimary}
+            className="inline-flex items-center gap-2 rounded-lg border border-accent bg-accent px-4 py-2.5 text-sm font-semibold text-accent-text transition-opacity hover:opacity-90"
           >
-            {secondaryLabel}
+            <KeyRound className="size-4" />
+            {primaryLabel}
           </button>
-        )}
+          {secondaryLabel && onSecondary && (
+            <button
+              type="button"
+              onClick={onSecondary}
+              className="rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-foreground hover:bg-foreground/[0.04]"
+            >
+              {secondaryLabel}
+            </button>
+          )}
+        </div>
         <a
           href={helperHref}
           target="_blank"
           rel="noreferrer"
-          className="ml-auto inline-flex items-center gap-1.5 text-xs text-muted hover:text-foreground"
+          className="inline-flex w-fit items-center gap-1.5 text-sm font-semibold text-foreground underline decoration-border underline-offset-4 hover:decoration-foreground"
         >
-          {helperLabel}
-          <ExternalLink className="size-3" />
+          {helperLabel} {helperDescription}
+          <ExternalLink className="size-4 shrink-0" />
         </a>
       </div>
     </section>
+  );
+}
+
+function OpenRouterBrand() {
+  return (
+    <div className="flex items-center gap-2 text-black dark:invert">
+      <svg
+        width="24"
+        height="24"
+        viewBox="0 0 512 512"
+        xmlns="http://www.w3.org/2000/svg"
+        fill="currentColor"
+        stroke="currentColor"
+        aria-hidden="true"
+      >
+        <path
+          d="M3 248.945C18 248.945 76 236 106 219C136 202 136 202 198 158C276.497 102.293 332 120.945 423 120.945"
+          strokeWidth="90"
+        />
+        <path d="M511 121.5L357.25 210.268L357.25 32.7324L511 121.5Z" />
+        <path
+          d="M0 249C15 249 73 261.945 103 278.945C133 295.945 133 295.945 195 339.945C273.497 395.652 329 377 420 377"
+          strokeWidth="90"
+        />
+        <path d="M508 376.445L354.25 287.678L354.25 465.213L508 376.445Z" />
+      </svg>
+      <span className="text-xl font-semibold tracking-tight">OpenRouter</span>
+    </div>
   );
 }
 
