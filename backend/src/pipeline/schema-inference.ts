@@ -31,7 +31,10 @@ function getModel(modelSlug?: string) {
   if (!apiKey) {
     throw new Error("Missing required environment variable: OPENROUTER_API_KEY");
   }
-  const openrouter = createOpenRouter({ apiKey });
+  const openrouter = createOpenRouter({
+    apiKey,
+    baseURL: process.env.OPENROUTER_BASE_URL,
+  });
   const resolvedSlug = modelSlug ?? DEFAULT_MODEL_IDS.SCHEMA_INFERENCE;
   return openrouter(resolvedSlug);
 }

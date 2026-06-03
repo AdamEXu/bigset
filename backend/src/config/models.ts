@@ -135,15 +135,17 @@ export async function fetchModelsFromOpenRouter(): Promise<OpenRouterModel[]> {
     throw new Error("OPENROUTER_API_KEY is not set");
   }
 
+  const baseUrl = (process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1").replace(/\/+$/, "");
+  const url = new URL(`${baseUrl}/models`);
+  url.searchParams.set("output_modalities", "text");
+  url.searchParams.set("supported_parameters", "tools");
+
   // Only text-based models that support tools
-  const response = await fetch(
-    "https://openrouter.ai/api/v1/models?output_modalities=text&supported_parameters=tools",
-    {
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-      },
-    }
-  );
+  const response = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+    },
+  });
 
   if (!response.ok) {
     throw new Error(`OpenRouter API failed: ${response.status} ${response.statusText}`);
@@ -152,8 +154,8 @@ export async function fetchModelsFromOpenRouter(): Promise<OpenRouterModel[]> {
   const json = (await response.json()) as {
     data: Array<{
       id: string;
-      name: string;
-      context_length: number;
+      name?: string;
+      context_length?: number;
       pricing?: { completion?: string; prompt?: string };
     }>;
   };
@@ -163,7 +165,7 @@ export async function fetchModelsFromOpenRouter(): Promise<OpenRouterModel[]> {
   const models = json.data
     .filter((m) => !EXCLUDED_MODEL_SLUGS.includes(m.id))
     .map((model) => ({
-      modelName: model.name,
+      modelName: model.name ?? model.id,
       canonicalSlug: model.id,
       contextLength: model.context_length ?? 0,
       promptCost: parseFloat(model.pricing?.prompt ?? "0") * 1_000_000,

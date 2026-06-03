@@ -109,6 +109,7 @@ Respond with EXACTLY one word: scraper or search`;
     try {
       const openrouter = createOpenRouter({
         apiKey: process.env.OPENROUTER_API_KEY!,
+        baseURL: process.env.OPENROUTER_BASE_URL,
       });
       const modelSlug =
         inputData.authContext?.modelConfig?.schemaInference ?? DEFAULT_MODEL_IDS.SCHEMA_INFERENCE;

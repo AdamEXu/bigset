@@ -7,6 +7,7 @@ import type { PopulateColumn } from "../../pipeline/populate.js";
 
 const openrouter = createOpenRouter({
   apiKey: process.env.OPENROUTER_API_KEY!,
+  baseURL: process.env.OPENROUTER_BASE_URL,
 });
 
 function buildInvestigateInstructions(columns: PopulateColumn[]): string {

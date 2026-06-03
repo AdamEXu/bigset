@@ -8,6 +8,7 @@ import type { RunMetrics } from "../run-metrics.js";
 
 const openrouter = createOpenRouter({
   apiKey: process.env.OPENROUTER_API_KEY!,
+  baseURL: process.env.OPENROUTER_BASE_URL,
 });
 
 const INSTRUCTIONS = `You are an expert dataset builder. You conduct research using your web tools.
