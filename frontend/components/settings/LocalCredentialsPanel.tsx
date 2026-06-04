@@ -6,7 +6,6 @@ import {
   CheckCircle2,
   ExternalLink,
   Fish,
-  KeyRound,
   Loader2,
   X,
 } from "lucide-react";
@@ -18,7 +17,6 @@ import {
   type ServiceSetupStatus,
 } from "@/lib/backend";
 import { isLocalMode } from "@/lib/app-mode";
-import { beginOpenRouterOAuth } from "@/lib/openrouter-oauth";
 
 type ServiceName = "tinyfish" | "openrouter";
 
@@ -118,9 +116,6 @@ export function LocalCredentialsPanel() {
             status={status?.services.openrouter}
             loading={loading}
             onApiKey={() => setModal("openrouter")}
-            onOAuth={() => {
-              void beginOpenRouterOAuth("/dashboard/settings/models");
-            }}
           />
         </div>
       )}
@@ -145,14 +140,12 @@ function CredentialRow({
   status,
   loading,
   onApiKey,
-  onOAuth,
 }: {
   icon: ReactNode;
   service: ServiceName;
   status?: ServiceSetupStatus;
   loading: boolean;
   onApiKey: () => void;
-  onOAuth?: () => void;
 }) {
   const copy = SERVICE_COPY[service];
   const connected = status?.configured ?? false;
@@ -179,16 +172,6 @@ function CredentialRow({
       </div>
 
       <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
-        {service === "openrouter" && onOAuth && (
-          <button
-            type="button"
-            onClick={onOAuth}
-            className="inline-flex items-center gap-2 rounded-lg border border-accent bg-accent px-3 py-2 text-xs font-semibold text-accent-text transition-opacity hover:opacity-90"
-          >
-            <KeyRound className="size-3.5" />
-            {connected ? "Reconnect OAuth" : "Connect OAuth"}
-          </button>
-        )}
         <button
           type="button"
           onClick={onApiKey}

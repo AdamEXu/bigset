@@ -17,7 +17,6 @@ import {
   type ServiceSetupStatus,
 } from "@/lib/backend";
 import { isLocalMode } from "@/lib/app-mode";
-import { beginOpenRouterOAuth } from "@/lib/openrouter-oauth";
 
 export default function SetupPage() {
   const router = useRouter();
@@ -98,14 +97,10 @@ export default function SetupPage() {
               status={status?.services.openrouter}
               primaryLabel={
                 status?.services.openrouter.configured
-                  ? "Reconnect OAuth"
-                  : "Connect OAuth"
+                  ? "Update key"
+                  : "Add API key"
               }
-              onPrimary={() => {
-                void beginOpenRouterOAuth("/setup");
-              }}
-              secondaryLabel="Use API key"
-              onSecondary={() => setModal("openrouter")}
+              onPrimary={() => setModal("openrouter")}
               helperHref="https://openrouter.ai/settings/keys"
               helperLabel="Need an OpenRouter key?"
               helperDescription="Open the OpenRouter keys page"
