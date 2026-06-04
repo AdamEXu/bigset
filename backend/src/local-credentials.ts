@@ -1,10 +1,15 @@
 import { convex, internal } from "./convex.js";
 import { env } from "./env.js";
+import {
+  getKeychainCredential,
+  setKeychainCredential,
+} from "./local-keychain-client.js";
+import type {
+  ConnectionMethod,
+  LocalCredentialService,
+} from "./local-credential-types.js";
 
 export const LOCAL_USER_ID = "local_user_default";
-
-export type LocalCredentialService = "tinyfish" | "openrouter";
-export type ConnectionMethod = "api_key" | "oauth";
 
 export interface ServiceSetupStatus {
   configured: boolean;
@@ -37,25 +42,42 @@ function envCredential(service: LocalCredentialService): string | undefined {
 async function localCredential(service: LocalCredentialService): Promise<{
   apiKey: string;
   connectionMethod: ConnectionMethod;
-  verifiedAt: number;
+  verifiedAt: number | null;
+  keychainAccount: string;
 } | null> {
   if (!env.IS_LOCAL_MODE) return null;
+  const keychain = await getKeychainCredential(service);
+  if (!keychain?.apiKey) return null;
+
   const row = await convex.query(internal.localCredentials.getInternal, {
     service,
   });
-  if (!row?.apiKey) return null;
+
   return {
-    apiKey: row.apiKey,
-    connectionMethod: row.connectionMethod,
-    verifiedAt: row.verifiedAt,
+    apiKey: keychain.apiKey,
+    connectionMethod: row?.connectionMethod ?? "api_key",
+    verifiedAt: row?.verifiedAt ?? null,
+    keychainAccount: keychain.keychainAccount,
   };
+}
+
+async function localCredentialForStatus(
+  service: LocalCredentialService,
+): Promise<Awaited<ReturnType<typeof localCredential>>> {
+  try {
+    return await localCredential(service);
+  } catch {
+    return null;
+  }
 }
 
 export async function resolveCredential(
   service: LocalCredentialService,
 ): Promise<{ apiKey: string; source: "local" | "env" } | null> {
-  const local = await localCredential(service);
-  if (local) return { apiKey: local.apiKey, source: "local" };
+  if (env.IS_LOCAL_MODE) {
+    const local = await localCredential(service);
+    return local ? { apiKey: local.apiKey, source: "local" } : null;
+  }
 
   const fromEnv = envCredential(service);
   if (fromEnv) return { apiKey: fromEnv, source: "env" };
@@ -120,10 +142,8 @@ export async function getLocalSetupStatus(): Promise<LocalSetupStatus> {
     };
   }
 
-  const tinyfishLocal = await localCredential("tinyfish");
-  const openrouterLocal = await localCredential("openrouter");
-  const tinyfishEnv = envCredential("tinyfish");
-  const openrouterEnv = envCredential("openrouter");
+  const tinyfishLocal = await localCredentialForStatus("tinyfish");
+  const openrouterLocal = await localCredentialForStatus("openrouter");
 
   const tinyfish: ServiceSetupStatus = tinyfishLocal
     ? {
@@ -133,9 +153,9 @@ export async function getLocalSetupStatus(): Promise<LocalSetupStatus> {
         verifiedAt: tinyfishLocal.verifiedAt,
       }
     : {
-        configured: !!tinyfishEnv,
-        source: tinyfishEnv ? "env" : null,
-        connectionMethod: tinyfishEnv ? "api_key" : null,
+        configured: false,
+        source: null,
+        connectionMethod: null,
         verifiedAt: null,
       };
 
@@ -147,9 +167,9 @@ export async function getLocalSetupStatus(): Promise<LocalSetupStatus> {
         verifiedAt: openrouterLocal.verifiedAt,
       }
     : {
-        configured: !!openrouterEnv,
-        source: openrouterEnv ? "env" : null,
-        connectionMethod: openrouterEnv ? "api_key" : null,
+        configured: false,
+        source: null,
+        connectionMethod: null,
         verifiedAt: null,
       };
 
@@ -169,12 +189,18 @@ export async function saveLocalCredential(
   if (!env.IS_LOCAL_MODE) {
     throw new Error("Local credential storage is disabled when PROD=1.");
   }
+  const { keychainAccount } = await setKeychainCredential(service, apiKey);
   await convex.mutation(internal.localCredentials.upsertInternal, {
     service,
-    apiKey,
+    keychainAccount,
     connectionMethod,
     verifiedAt: Date.now(),
   });
+}
+
+export async function clearLegacyPlaintextLocalCredentials(): Promise<void> {
+  if (!env.IS_LOCAL_MODE) return;
+  await convex.mutation(internal.localCredentials.clearLegacyPlaintextInternal, {});
 }
 
 export async function verifyTinyFishApiKey(apiKey: string): Promise<void> {

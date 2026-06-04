@@ -15,6 +15,7 @@ import { capture, shutdown as shutdownAnalytics } from "./analytics/posthog.js";
 import { EVENTS } from "./analytics/events.js";
 import { registerDataset, deregisterDataset, abortDataset } from "./abort-registry.js";
 import {
+  clearLegacyPlaintextLocalCredentials,
   exchangeOpenRouterOAuthCode,
   getLocalSetupStatus,
   requireLocalSetupComplete,
@@ -639,6 +640,10 @@ await fastify.register(fastifyCors, {
 // `requireAuth` (also exported from ./clerk-auth) is the preHandler for
 // protected routes — see the example block below.
 await fastify.register(clerkAuthPlugin);
+
+await clearLegacyPlaintextLocalCredentials().catch((err) => {
+  fastify.log.warn({ err }, "Failed to clear legacy local credential plaintext");
+});
 
 await backfillDatasetRefreshSettings(fastify.log);
 const refreshScheduler = startLocalRefreshScheduler(fastify.log);

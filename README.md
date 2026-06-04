@@ -91,7 +91,7 @@ TinyFish powers all web search and page fetching. Search and Fetch have generous
 
 1. Go to [tinyfish.ai](https://www.tinyfish.ai?utm_source=github&utm_medium=organic&utm_campaign=bigset-developer-2026q2) and create an account
 2. Go to [API Keys](https://agent.tinyfish.ai/api-keys?utm_source=github&utm_medium=organic&utm_campaign=bigset-developer-2026q2) and create a key
-3. Paste it as `TINYFISH_API_KEY` in `.env`
+3. Keep it handy; you'll paste it into BigSet's setup screen after `make dev`. Local keys are stored in your OS keychain.
 
 ### Step 3: Set up OpenRouter (LLM)
 
@@ -99,7 +99,7 @@ OpenRouter routes LLM calls to Claude Sonnet (schema inference) and Qwen (agents
 
 1. Go to [openrouter.ai](https://openrouter.ai) and create an account
 2. Go to [Settings → Keys](https://openrouter.ai/settings/keys) and create an API key
-3. Paste it as `OPENROUTER_API_KEY` in `.env`
+3. Keep it handy; you'll paste it into BigSet's setup screen after `make dev`. Local keys are stored in your OS keychain.
 4. Add some credits; $5-10 is plenty to start
 
 ### Step 4: Set up Clerk (auth)
@@ -134,6 +134,7 @@ Once everything is ready, you'll see:
 | **Mastra Studio** (workflow inspector) | [localhost:4111](http://localhost:4111) |
 
 Open [localhost:3500](http://localhost:3500) and click **Get started** to sign in.
+The setup screen will ask for TinyFish and OpenRouter credentials and save them to your OS keychain for this workspace.
 
 > **Note:** root `.env` is the only local env file. If you edit Convex functions in `frontend/convex/`, run `make convex-push` to deploy the changes.
 
@@ -155,15 +156,16 @@ This is idempotent; safe to run multiple times.
 
 `make dev` is designed to handle everything — first run, subsequent runs, and recovery from bad state. You should never need to run any other setup command. Here's what it does, in order:
 
-1. **Validates your `.env`** — checks that all required API keys are set (Clerk, OpenRouter, TinyFish). Stops with a clear error if anything is missing.
+1. **Validates your `.env`** — checks required production keys when `PROD=1`; local mode generates keychain bridge settings automatically.
 2. **Installs dependencies** — runs `npm install` in both `frontend/` and `backend/`. Silent if already up to date.
-3. **Starts the database layer** — brings up Postgres and Convex (self-hosted) first, since other services depend on them.
-4. **Waits for Convex** — polls the Convex health endpoint until it's ready (up to 120s).
-5. **Ensures the admin key** — if `CONVEX_SELF_HOSTED_ADMIN_KEY` is empty in `.env`, generates one automatically and writes it. If a key exists, validates it against the running Convex instance. If the key is stale (e.g. you ran `make clean` and wiped the database), it detects the mismatch and regenerates.
-6. **Pushes Convex config** — sets the Clerk JWT issuer URL in Convex so auth tokens are validated correctly.
-7. **Deploys Convex schema** — pushes the table schema and functions from `frontend/convex/` to the running instance.
-8. **Starts remaining services** — brings up the frontend, backend, and Mastra. These read the now-populated `.env` including the admin key.
-9. **Streams logs** — tails all container logs so you can see what's happening. `Ctrl+C` to stop watching (containers keep running).
+3. **Starts the local keychain bridge** — runs a host-side helper so Docker services can read/write this workspace's OS keychain entries.
+4. **Starts the database layer** — brings up Postgres and Convex (self-hosted) first, since other services depend on them.
+5. **Waits for Convex** — polls the Convex health endpoint until it's ready (up to 120s).
+6. **Ensures the admin key** — if `CONVEX_SELF_HOSTED_ADMIN_KEY` is empty in `.env`, generates one automatically and writes it. If a key exists, validates it against the running Convex instance. If the key is stale (e.g. you ran `make clean` and wiped the database), it detects the mismatch and regenerates.
+7. **Pushes Convex config** — sets the Clerk JWT issuer URL in Convex so auth tokens are validated correctly.
+8. **Deploys Convex schema** — pushes the table schema and functions from `frontend/convex/` to the running instance.
+9. **Starts remaining services** — brings up the frontend, backend, and Mastra. These read the now-populated `.env` including the admin key.
+10. **Streams logs** — tails all container logs so you can see what's happening. `Ctrl+C` to stop watching (containers keep running).
 
 ### Commands
 
@@ -189,7 +191,7 @@ Other commands you might use during development:
 | Problem | What happens |
 |---------|-------------|
 | Missing `.env` | Error: "Run: cp .env.example .env" |
-| Missing API key | Error tells you exactly which key to set |
+| Missing production API key | Error tells you exactly which key to set |
 | Stale admin key (after `make clean`) | Detected automatically, regenerated |
 | Containers already running | No-op for running services, starts any that are missing |
 | Convex won't start | Error after 120s timeout — check Docker is running |
@@ -202,12 +204,13 @@ If you want a completely fresh start: `make clean` then `make dev`.
 
 | Variable | Required | Where to get it |
 |----------|----------|----------------|
-| `TINYFISH_API_KEY` | ✅ | [tinyfish.ai](https://agent.tinyfish.ai/api-keys?utm_source=github&utm_medium=organic&utm_campaign=bigset-developer-2026q2) → API Keys |
-| `OPENROUTER_API_KEY` | ✅ | openrouter.ai → Settings → Keys |
+| `TINYFISH_API_KEY` | Production only | [tinyfish.ai](https://agent.tinyfish.ai/api-keys?utm_source=github&utm_medium=organic&utm_campaign=bigset-developer-2026q2) → API Keys |
+| `OPENROUTER_API_KEY` | Production only | openrouter.ai → Settings → Keys |
 | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | ✅ | Clerk dashboard → API Keys |
 | `CLERK_SECRET_KEY` | ✅ | Clerk dashboard → API Keys |
 | `CLERK_JWT_ISSUER_DOMAIN` | ✅ | Clerk dashboard → Settings/Domains |
 | `CONVEX_SELF_HOSTED_ADMIN_KEY` | Auto | Auto-generated by `make dev` on first run |
+| `LOCAL_KEYCHAIN_PORT`, `LOCAL_KEYCHAIN_TOKEN`, `BIGSET_LOCAL_WORKSPACE_ID` | Auto | Auto-generated by `make dev` for local OS keychain access |
 | `RESEND_API_KEY` | Optional | For "dataset ready" emails. Leave blank to skip. |
 | `NEXT_PUBLIC_POSTHOG_KEY` | Optional | For product analytics. Leave blank to disable. |
 

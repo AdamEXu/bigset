@@ -307,8 +307,8 @@ function ApiKeyModal({
             </h2>
             <p className="mt-1 text-xs text-muted">
               {isTinyFish
-                ? "BigSet verifies the key with a small search request."
-                : "OAuth is preferred, but a direct API key works too."}
+                ? "BigSet verifies the key and stores it in your OS keychain."
+                : "BigSet verifies the key and stores it in your OS keychain."}
             </p>
           </div>
           <button
@@ -361,7 +361,7 @@ function ApiKeyModal({
               className="inline-flex items-center gap-2 rounded-lg border border-accent bg-accent px-4 py-2 text-xs font-semibold text-accent-text transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-30"
             >
               {saving && <Loader2 className="size-3.5 animate-spin" />}
-              Verify and save
+              Verify and save to keychain
             </button>
           </div>
         </div>

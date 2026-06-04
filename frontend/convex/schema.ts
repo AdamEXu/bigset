@@ -139,10 +139,13 @@ export default defineSchema({
 
   localCredentials: defineTable({
     service: v.union(v.literal("tinyfish"), v.literal("openrouter")),
-    apiKey: v.string(),
+    keychainAccount: v.optional(v.string()),
     connectionMethod: v.union(v.literal("api_key"), v.literal("oauth")),
     verifiedAt: v.number(),
     updatedAt: v.number(),
+    // Legacy only: accepted so the migration can deploy, then cleared by the
+    // backend startup purge. New code never writes this field.
+    apiKey: v.optional(v.string()),
   }).index("by_service", ["service"]),
 
   // One row per populate workflow run. Written once at the end of each run

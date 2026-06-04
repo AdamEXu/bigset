@@ -24,7 +24,7 @@ export const getInternal = internalQuery({
 export const upsertInternal = internalMutation({
   args: {
     service: serviceValidator,
-    apiKey: v.string(),
+    keychainAccount: v.string(),
     connectionMethod: connectionMethodValidator,
     verifiedAt: v.number(),
   },
@@ -35,14 +35,14 @@ export const upsertInternal = internalMutation({
       .unique();
 
     const update = {
-      apiKey: args.apiKey,
+      keychainAccount: args.keychainAccount,
       connectionMethod: args.connectionMethod,
       verifiedAt: args.verifiedAt,
       updatedAt: Date.now(),
     };
 
     if (existing) {
-      await ctx.db.patch(existing._id, update);
+      await ctx.db.patch(existing._id, { ...update, apiKey: undefined });
       return existing._id;
     }
 
@@ -50,5 +50,22 @@ export const upsertInternal = internalMutation({
       service: args.service,
       ...update,
     });
+  },
+});
+
+export const clearLegacyPlaintextInternal = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const rows = await ctx.db.query("localCredentials").collect();
+    let cleared = 0;
+
+    for (const row of rows) {
+      if (row.apiKey !== undefined) {
+        await ctx.db.patch(row._id, { apiKey: undefined });
+        cleared += 1;
+      }
+    }
+
+    return { cleared };
   },
 });

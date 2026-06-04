@@ -28,7 +28,7 @@ const SERVICE_COPY = {
     modalTitle: "TinyFish API key",
     description: "Search and fetch APIs for live dataset population.",
     inputPlaceholder: "tf_...",
-    modalDescription: "BigSet verifies the key with a small search request.",
+    modalDescription: "BigSet verifies the key and stores it in your OS keychain.",
     helperHref:
       "https://agent.tinyfish.ai/api-keys?utm_source=github&utm_medium=organic&utm_campaign=bigset-developer-2026q2",
   },
@@ -37,7 +37,8 @@ const SERVICE_COPY = {
     modalTitle: "OpenRouter API key",
     description: "Model access for schema inference and agents.",
     inputPlaceholder: "sk-or-...",
-    modalDescription: "OAuth is preferred, but a direct API key works too.",
+    modalDescription:
+      "BigSet verifies the key and stores it in your OS keychain.",
     helperHref: "https://openrouter.ai/settings/keys",
   },
 } satisfies Record<
@@ -93,8 +94,8 @@ export function LocalCredentialsPanel() {
           Service credentials
         </h2>
         <p className="mt-1 text-xs leading-5 text-muted">
-          Local BigSet stores these keys for this local workspace. Cloud
-          deployments continue to use environment variables.
+          Local BigSet stores these keys in your OS keychain for this
+          workspace. Cloud deployments continue to use environment variables.
         </p>
       </div>
 
@@ -347,7 +348,7 @@ function ApiKeyModal({
               className="inline-flex items-center gap-2 rounded-lg border border-accent bg-accent px-4 py-2 text-xs font-semibold text-accent-text transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-30"
             >
               {saving && <Loader2 className="size-3.5 animate-spin" />}
-              Verify and save
+              Verify and save to keychain
             </button>
           </div>
         </div>

@@ -1,6 +1,6 @@
 SHELL := /usr/bin/env bash
 
-.PHONY: all dev validate-dev-env down clean convex-push convex-env seed-public-datasets ensure-admin-key install-deps
+.PHONY: all dev validate-dev-env start-local-keychain stop-local-keychain down clean convex-push convex-env seed-public-datasets ensure-admin-key install-deps
 
 all: dev
 
@@ -8,7 +8,7 @@ install-deps:
 	@cd frontend && npm install --silent
 	@cd backend && npm install --silent
 
-dev: validate-dev-env install-deps
+dev: validate-dev-env install-deps start-local-keychain
 	docker compose -f docker-compose.dev.yml up --build -d db convex convex-dashboard
 	@echo "Waiting for Convex..."
 	@for i in $$(seq 1 120); do \
@@ -33,6 +33,26 @@ validate-dev-env:
 	@if [ ! -f .env ]; then \
 		printf "# Auto-created by make dev. Leave PROD unset for local mode.\n" > .env; \
 		echo "Created local .env"; \
+	fi
+	@prod="$$(grep '^PROD=' .env | cut -d= -f2-)"; \
+	if [[ "$$prod" != "1" ]]; then \
+		ensure_env_var() { \
+			key="$$1"; value="$$2"; \
+			if grep -q "^$$key=" .env; then \
+				current="$$(grep "^$$key=" .env | tail -n1 | cut -d= -f2-)"; \
+				if [[ -z "$$current" ]]; then \
+					sed -i.bak "s#^$$key=.*#$$key=$$value#" .env && rm -f .env.bak; \
+				fi; \
+			else \
+				echo "$$key=$$value" >> .env; \
+			fi; \
+		}; \
+		workspace_id="$$(node -e 'const { createHash } = require("node:crypto"); process.stdout.write(createHash("sha256").update(process.cwd()).digest("hex").slice(0, 16));')"; \
+		token="$$(node -e 'const { randomBytes } = require("node:crypto"); process.stdout.write(randomBytes(32).toString("hex"));')"; \
+		ensure_env_var LOCAL_KEYCHAIN_PORT 3502; \
+		ensure_env_var LOCAL_KEYCHAIN_TIMEOUT_MS 5000; \
+		ensure_env_var BIGSET_LOCAL_WORKSPACE_ID "$$workspace_id"; \
+		ensure_env_var LOCAL_KEYCHAIN_TOKEN "$$token"; \
 	fi
 	@prod="$$(grep '^PROD=' .env | cut -d= -f2-)"; \
 	if [[ "$$prod" != "1" ]]; then \
@@ -90,6 +110,45 @@ validate-dev-env:
 		echo "Paste your keys into .env, then run make dev again."; \
 		echo ""; \
 		exit 1; \
+	fi
+
+start-local-keychain:
+	@prod="$$(grep '^PROD=' .env | cut -d= -f2-)"; \
+	if [[ "$$prod" == "1" ]]; then \
+		echo "Production mode: local keychain bridge skipped."; \
+		exit 0; \
+	fi
+	@mkdir -p .local
+	@if [ -f .local/keychain.pid ]; then \
+		pid="$$(cat .local/keychain.pid)"; \
+		if [[ -n "$$pid" ]] && kill -0 "$$pid" > /dev/null 2>&1; then \
+			kill "$$pid" > /dev/null 2>&1 || true; \
+		fi; \
+		rm -f .local/keychain.pid; \
+	fi
+	@port="$$(grep '^LOCAL_KEYCHAIN_PORT=' .env | tail -n1 | cut -d= -f2-)"; \
+	echo "Starting local keychain bridge on 127.0.0.1:$$port..."; \
+	LOCAL_KEYCHAIN_BIND_HOST=127.0.0.1 bash -lc 'cd backend && exec node ../scripts/with-root-env.mjs npx tsx src/keychain-server.ts' \
+		> .local/keychain.log 2>&1 & echo $$! > .local/keychain.pid; \
+	for i in $$(seq 1 30); do \
+		if curl -sf "http://127.0.0.1:$$port/health" > /dev/null 2>&1; then \
+			echo "Local keychain bridge is up."; \
+			exit 0; \
+		fi; \
+		sleep 1; \
+	done; \
+	echo "Error: local keychain bridge did not start. Last log lines:"; \
+	tail -40 .local/keychain.log; \
+	exit 1
+
+stop-local-keychain:
+	@if [ -f .local/keychain.pid ]; then \
+		pid="$$(cat .local/keychain.pid)"; \
+		if [[ -n "$$pid" ]] && kill -0 "$$pid" > /dev/null 2>&1; then \
+			echo "Stopping local keychain bridge..."; \
+			kill "$$pid" > /dev/null 2>&1 || true; \
+		fi; \
+		rm -f .local/keychain.pid; \
 	fi
 
 ensure-admin-key:
@@ -171,10 +230,10 @@ seed-public-datasets:
 	@test -f .env || { echo "Error: .env not found. Run: cp .env.example .env"; exit 1; }
 	@cd frontend && node ../scripts/with-root-env.mjs npx convex run publicSeed:seedPublicDatasets
 
-down:
+down: stop-local-keychain
 	docker compose -f docker-compose.dev.yml down
 
-clean:
+clean: stop-local-keychain
 	docker compose -f docker-compose.dev.yml down -v --rmi local
 	@if [ -f .env ]; then \
 		sed -i.bak 's|^CONVEX_SELF_HOSTED_ADMIN_KEY=.*|CONVEX_SELF_HOSTED_ADMIN_KEY=|' .env && rm -f .env.bak; \

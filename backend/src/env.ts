@@ -39,6 +39,11 @@ export const env = {
     process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
 
   OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
+  BIGSET_LOCAL_WORKSPACE_ID:
+    process.env.BIGSET_LOCAL_WORKSPACE_ID ?? "bigset-local-default",
+  LOCAL_KEYCHAIN_URL: process.env.LOCAL_KEYCHAIN_URL,
+  LOCAL_KEYCHAIN_TOKEN: process.env.LOCAL_KEYCHAIN_TOKEN,
+  LOCAL_KEYCHAIN_TIMEOUT_MS: numberFromEnv("LOCAL_KEYCHAIN_TIMEOUT_MS", 5_000),
 
   // Default models — used when a user has not saved a preference.
   // Each must be a valid OpenRouter model slug.
