@@ -8,6 +8,7 @@ import {
   stat,
   writeFile,
 } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -25,7 +26,7 @@ function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
     cwd: options.cwd ?? repoRoot,
     env: { ...process.env, ...options.env },
-    shell: options.shell ?? process.platform === "win32",
+    shell: options.shell ?? false,
     stdio: "inherit",
   });
   if (result.status !== 0) {
@@ -178,6 +179,26 @@ fresh local Convex backend.
   );
 }
 
+async function bundleBackend() {
+  const requireFromBackend = createRequire(join(backendDir, "package.json"));
+  const esbuild = requireFromBackend("esbuild");
+
+  await esbuild.build({
+    absWorkingDir: backendDir,
+    entryPoints: ["src/index.ts"],
+    bundle: true,
+    platform: "node",
+    format: "esm",
+    target: "node22",
+    outfile: join(packageRoot, "backend", "backend.mjs"),
+    banner: {
+      js: `import { createRequire as __bigsetCreateRequire } from "node:module"; const require = __bigsetCreateRequire(import.meta.url);`,
+    },
+    packages: "bundle",
+    logLevel: "warning",
+  });
+}
+
 async function copyConvexRuntime() {
   await cp(join(frontendDir, "convex"), join(packageRoot, "frontend", "convex"), {
     recursive: true,
@@ -201,6 +222,7 @@ async function main() {
   console.log("Building frontend standalone output...");
   run("npm", ["run", "build"], {
     cwd: frontendDir,
+    shell: process.platform === "win32",
     env: {
       NEXT_PUBLIC_BACKEND_URL: "http://127.0.0.1:3501",
       NEXT_PUBLIC_CONVEX_URL: "http://127.0.0.1:3210",
@@ -210,21 +232,7 @@ async function main() {
   });
 
   console.log("Bundling backend...");
-  run(
-    join(backendDir, "node_modules", ".bin", "esbuild"),
-    [
-      "src/index.ts",
-      "--bundle",
-      "--platform=node",
-      "--format=esm",
-      "--target=node22",
-      `--outfile=${join(packageRoot, "backend", "backend.mjs")}`,
-      `--banner:js=import { createRequire as __bigsetCreateRequire } from "node:module"; const require = __bigsetCreateRequire(import.meta.url);`,
-      "--packages=bundle",
-      "--log-level=warning",
-    ],
-    { cwd: backendDir },
-  );
+  await bundleBackend();
 
   const standaloneDir = join(frontendDir, ".next", "standalone");
   await assertExists(
