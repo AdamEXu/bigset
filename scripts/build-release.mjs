@@ -103,7 +103,6 @@ start(
     CONVEX_URL: convexUrl,
     NEXT_PUBLIC_CONVEX_URL: convexUrl,
     NEXT_PUBLIC_BACKEND_URL: backendUrl,
-    BIGSET_SKIP_CONVEX_STARTUP: "1",
     REFRESH_SCHEDULER_ENABLED: process.env.REFRESH_SCHEDULER_ENABLED ?? "false",
   },
   new URL("./backend", root).pathname,

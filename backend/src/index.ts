@@ -662,19 +662,12 @@ await fastify.register(fastifyCors, {
 // protected routes — see the example block below.
 await fastify.register(clerkAuthPlugin);
 
-let refreshScheduler: ReturnType<typeof setInterval> | null = null;
-if (env.SKIP_CONVEX_STARTUP) {
-  fastify.log.warn(
-    "Skipping Convex startup work because BIGSET_SKIP_CONVEX_STARTUP=1",
-  );
-} else {
-  await clearLegacyPlaintextLocalCredentials().catch((err) => {
-    fastify.log.warn({ err }, "Failed to clear legacy local credential plaintext");
-  });
+await clearLegacyPlaintextLocalCredentials().catch((err) => {
+  fastify.log.warn({ err }, "Failed to clear legacy local credential plaintext");
+});
 
-  await backfillDatasetRefreshSettings(fastify.log);
-  refreshScheduler = startLocalRefreshScheduler(fastify.log);
-}
+await backfillDatasetRefreshSettings(fastify.log);
+const refreshScheduler = startLocalRefreshScheduler(fastify.log);
 
 // Flush queued PostHog events on graceful shutdown so a SIGTERM mid-flight
 // doesn't drop the dataset_ready_email_sent capture from the last request.
