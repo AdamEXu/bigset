@@ -25,7 +25,7 @@ function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
     cwd: options.cwd ?? repoRoot,
     env: { ...process.env, ...options.env },
-    shell: process.platform === "win32",
+    shell: options.shell ?? process.platform === "win32",
     stdio: "inherit",
   });
   if (result.status !== 0) {
@@ -46,6 +46,24 @@ async function fileSize(path) {
 function formatBytes(bytes) {
   const mb = bytes / 1024 / 1024;
   return `${mb.toFixed(mb >= 10 ? 1 : 2)} MB`;
+}
+
+function powerShellQuote(value) {
+  return `'${value.replaceAll("'", "''")}'`;
+}
+
+function createZipArtifact() {
+  if (process.platform === "win32") {
+    run("powershell.exe", [
+      "-NoProfile",
+      "-NonInteractive",
+      "-Command",
+      `Compress-Archive -LiteralPath ${powerShellQuote(join(workDir, "bigset"))} -DestinationPath ${powerShellQuote(artifactPath)} -CompressionLevel Optimal -Force`,
+    ], { shell: false });
+    return;
+  }
+
+  run("zip", ["-qry", "-9", artifactPath, "bigset"], { cwd: workDir });
 }
 
 async function writeStartScript() {
@@ -229,7 +247,7 @@ async function main() {
   await writeReadme();
 
   console.log("Creating zip artifact...");
-  run("zip", ["-qry", "-9", artifactPath, "bigset"], { cwd: workDir });
+  createZipArtifact();
 
   const artifactSize = await fileSize(artifactPath);
   console.log("");
