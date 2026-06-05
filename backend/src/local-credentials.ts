@@ -254,7 +254,7 @@ export async function verifyOpenRouterApiKey(apiKey: string): Promise<void> {
 
   await withFetchTimeout(
     async (signal) => {
-      const response = await fetch(`${baseUrl}/models`, {
+      const response = await fetch(`${baseUrl}/key`, {
         headers: { Authorization: `Bearer ${apiKey}` },
         signal,
       });
