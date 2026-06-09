@@ -7,6 +7,9 @@ import type { PopulateColumn } from "../../pipeline/populate.js";
 
 function buildInvestigateInstructions(columns: PopulateColumn[]): string {
   const columnNames = columns.map((c) => c.name);
+  const dataExample = columnNames
+    .map((n) => `{"column": "${n}", "value": "value"}`)
+    .join(", ");
   const columnsDesc = columns
     .map(
       (c) =>
@@ -29,7 +32,7 @@ RULES:
 TOOL CALL FORMAT — every tool call argument must be a JSON object wrapped in curly braces:
   search_web: {"query": "your search terms"}
   fetch_page: {"url": "https://example.com"}
-  insert_row: {"data": {${columnNames.map((n) => `"${n}": "value"`).join(", ")}}, "sources": ["https://url-you-fetched.com"], "row_summary": "one line about this entity", "how_found": "step by step guide on how to extract the data so an agent in the future can do it too"}
+  insert_row: {"data": [${dataExample}], "sources": ["https://url-you-fetched.com"], "row_summary": "one line about this entity", "how_found": "step by step guide on how to extract the data so an agent in the future can do it too"}
 
 WORKFLOW:
 1. Fetch 1-2 of the provided URLs to get real data (if URLs were given).

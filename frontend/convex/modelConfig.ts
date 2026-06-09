@@ -3,12 +3,40 @@ import type { MutationCtx, QueryCtx } from "./_generated/server.js";
 import { v } from "convex/values";
 import { getIdentity } from "./lib/authz.js";
 
-type LlmProvider = "openrouter" | "openai" | "anthropic" | "custom";
+type LlmProvider =
+  | "openrouter"
+  | "openai"
+  | "anthropic"
+  | "google"
+  | "xai"
+  | "deepseek"
+  | "qwen"
+  | "mistral"
+  | "groq"
+  | "togetherai"
+  | "deepinfra"
+  | "fireworks"
+  | "huggingface"
+  | "ollama"
+  | "lmstudio"
+  | "custom";
 
 const providerValidator = v.union(
   v.literal("openrouter"),
   v.literal("openai"),
   v.literal("anthropic"),
+  v.literal("google"),
+  v.literal("xai"),
+  v.literal("deepseek"),
+  v.literal("qwen"),
+  v.literal("mistral"),
+  v.literal("groq"),
+  v.literal("togetherai"),
+  v.literal("deepinfra"),
+  v.literal("fireworks"),
+  v.literal("huggingface"),
+  v.literal("ollama"),
+  v.literal("lmstudio"),
   v.literal("custom"),
 );
 

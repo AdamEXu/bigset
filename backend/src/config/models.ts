@@ -8,7 +8,12 @@ import { api, internal, convex } from "../convex.js";
 import { env } from "../env.js";
 import { getLlmProviderConfig, requireOpenRouterApiKey } from "../local-credentials.js";
 import { FETCH_TIMEOUT_MS } from "../fetch-timeout.js";
-import { defaultModelForLlmProviderRole, type ModelRoleKey } from "./llm.js";
+import {
+  defaultBaseUrlForLlmProvider,
+  defaultModelForLlmProviderRole,
+  modelsUrlForLlmProvider,
+  type ModelRoleKey,
+} from "./llm.js";
 
 export interface OpenRouterModel {
   modelName: string;
@@ -46,6 +51,98 @@ const OPENAI_MODEL_EXCLUDE_PATTERNS = [
   "whisper",
 ];
 
+const GOOGLE_MODEL_EXCLUDE_PATTERNS = [
+  "audio",
+  "embedding",
+  "imagen",
+  "image",
+  "live",
+  "lyria",
+  "nano-banana",
+  "robotics",
+  "tts",
+  "veo",
+];
+
+const TEXT_MODEL_EXCLUDE_PATTERNS = [
+  "audio",
+  "babbage",
+  "dall-e",
+  "embedding",
+  "image",
+  "moderation",
+  "rerank",
+  "safeguard",
+  "sdxl",
+  "speech",
+  "stable-diffusion",
+  "transcribe",
+  "tts",
+  "video",
+  "voice",
+  "wan",
+  "whisper",
+];
+
+const QWEN_MODELS: OpenRouterModel[] = [
+  {
+    modelName: "qwen-plus",
+    canonicalSlug: "qwen-plus",
+    contextLength: 0,
+    completionCost: 0,
+    promptCost: 0,
+  },
+  {
+    modelName: "qwen3.5-plus",
+    canonicalSlug: "qwen3.5-plus",
+    contextLength: 0,
+    completionCost: 0,
+    promptCost: 0,
+  },
+  {
+    modelName: "qwen3-max",
+    canonicalSlug: "qwen3-max",
+    contextLength: 0,
+    completionCost: 0,
+    promptCost: 0,
+  },
+  {
+    modelName: "qwen-max",
+    canonicalSlug: "qwen-max",
+    contextLength: 0,
+    completionCost: 0,
+    promptCost: 0,
+  },
+  {
+    modelName: "qwen-flash",
+    canonicalSlug: "qwen-flash",
+    contextLength: 0,
+    completionCost: 0,
+    promptCost: 0,
+  },
+  {
+    modelName: "qwen3-235b-a22b-instruct-2507",
+    canonicalSlug: "qwen3-235b-a22b-instruct-2507",
+    contextLength: 0,
+    completionCost: 0,
+    promptCost: 0,
+  },
+  {
+    modelName: "qwen3-235b-a22b-thinking-2507",
+    canonicalSlug: "qwen3-235b-a22b-thinking-2507",
+    contextLength: 0,
+    completionCost: 0,
+    promptCost: 0,
+  },
+  {
+    modelName: "qwen3-coder-plus",
+    canonicalSlug: "qwen3-coder-plus",
+    contextLength: 0,
+    completionCost: 0,
+    promptCost: 0,
+  },
+];
+
 function isOpenAITextModelId(id: string): boolean {
   const lower = id.toLowerCase();
   if (OPENAI_MODEL_EXCLUDE_PATTERNS.some((pattern) => lower.includes(pattern))) {
@@ -60,6 +157,77 @@ function isOpenAITextModelId(id: string): boolean {
   );
 }
 
+function isGenericTextModelId(id: string): boolean {
+  const lower = id.toLowerCase();
+  return !TEXT_MODEL_EXCLUDE_PATTERNS.some((pattern) =>
+    lower.includes(pattern),
+  );
+}
+
+function isGoogleTextModelId(id: string): boolean {
+  const lower = id.toLowerCase();
+  if (GOOGLE_MODEL_EXCLUDE_PATTERNS.some((pattern) => lower.includes(pattern))) {
+    return false;
+  }
+  return (
+    lower.startsWith("gemini-") ||
+    lower.startsWith("gemma-") ||
+    lower.startsWith("deep-research-")
+  );
+}
+
+function isMistralTextModelId(id: string): boolean {
+  const lower = id.toLowerCase();
+  return (
+    isGenericTextModelId(id) &&
+    (lower.startsWith("mistral-") ||
+      lower.startsWith("magistral-") ||
+      lower.startsWith("ministral-") ||
+      lower.startsWith("codestral-") ||
+      lower.startsWith("devstral-") ||
+      lower.startsWith("pixtral-"))
+  );
+}
+
+function isProviderTextModelId(
+  id: string,
+  provider: Awaited<ReturnType<typeof getLlmProviderConfig>>,
+): boolean {
+  if (!provider) return true;
+  switch (provider.provider) {
+    case "openrouter":
+      return id.includes("/");
+    case "openai":
+      return isOpenAITextModelId(id) && !id.includes("/");
+    case "anthropic":
+      return id.startsWith("claude-") && !id.includes("/");
+    case "google":
+      return isGoogleTextModelId(id) && !id.includes("/");
+    case "xai":
+      return id.startsWith("grok-") && !id.includes("imagine");
+    case "deepseek":
+      return id.startsWith("deepseek-");
+    case "qwen":
+      return id.startsWith("qwen") || id.startsWith("qwq-");
+    case "mistral":
+      return isMistralTextModelId(id);
+    case "groq":
+    case "togetherai":
+    case "deepinfra":
+    case "fireworks":
+    case "huggingface":
+      return isGenericTextModelId(id);
+    case "ollama":
+    case "lmstudio":
+    case "custom":
+      return true;
+  }
+}
+
+function googleModelIdFromName(name: string): string {
+  return name.replace(/^models\//, "");
+}
+
 function sortModels(models: OpenRouterModel[]): OpenRouterModel[] {
   return models.sort((a, b) => a.modelName.localeCompare(b.modelName));
 }
@@ -69,17 +237,7 @@ function isModelCompatibleWithProvider(
   provider: Awaited<ReturnType<typeof getLlmProviderConfig>>,
 ): modelId is string {
   if (!modelId) return false;
-  if (!provider) return true;
-  switch (provider.provider) {
-    case "openrouter":
-      return modelId.includes("/");
-    case "openai":
-      return isOpenAITextModelId(modelId) && !modelId.includes("/");
-    case "anthropic":
-      return modelId.startsWith("claude-") && !modelId.includes("/");
-    case "custom":
-      return true;
-  }
+  return isProviderTextModelId(modelId, provider);
 }
 
 function modelForProvider(
@@ -175,25 +333,82 @@ export async function fetchModelsForCurrentLlmProvider(): Promise<OpenRouterMode
     );
   }
 
-  const baseUrl = (config.baseUrl || "https://api.openai.com/v1").replace(/\/+$/, "");
+  if (config.provider === "google") {
+    const baseUrl = (
+      config.baseUrl ||
+      defaultBaseUrlForLlmProvider("google") ||
+      "https://generativelanguage.googleapis.com/v1beta"
+    ).replace(/\/+$/, "");
+    const json = await fetchJsonWithTimeout<{
+      models?: Array<{
+        name: string;
+        baseModelId?: string;
+        displayName?: string;
+        inputTokenLimit?: number;
+        outputTokenLimit?: number;
+        supportedActions?: string[];
+        supportedGenerationMethods?: string[];
+      }>;
+    }>(`${baseUrl}/models`, {
+      "x-goog-api-key": config.apiKey,
+    });
+
+    return sortModels(
+      (json.models ?? [])
+        .map((model) => {
+          const modelId = model.baseModelId || googleModelIdFromName(model.name);
+          return {
+            model,
+            modelId,
+            actions:
+              model.supportedActions ?? model.supportedGenerationMethods ?? [],
+          };
+        })
+        .filter(({ modelId, actions }) => {
+          return (
+            isGoogleTextModelId(modelId) &&
+            (actions.length === 0 || actions.includes("generateContent"))
+          );
+        })
+        .map(({ model, modelId }) => ({
+          modelName: model.displayName ?? modelId,
+          canonicalSlug: modelId,
+          contextLength: model.inputTokenLimit ?? 0,
+          completionCost: 0,
+          promptCost: 0,
+        })),
+    );
+  }
+
+  if (config.provider === "qwen") {
+    return sortModels([...QWEN_MODELS]);
+  }
+
+  const baseUrl = (
+    config.baseUrl ||
+    defaultBaseUrlForLlmProvider(config.provider) ||
+    "https://api.openai.com/v1"
+  ).replace(/\/+$/, "");
   const headers: Record<string, string> =
-    config.provider === "custom" && !config.apiKey
+    ["custom", "ollama", "lmstudio"].includes(config.provider) && !config.apiKey
       ? {}
       : { Authorization: `Bearer ${config.apiKey}` };
   const json = await fetchJsonWithTimeout<{
-    data?: Array<{ id: string }>;
-  }>(`${baseUrl}/models`, headers);
+    data?: Array<{
+      id: string;
+      display_name?: string;
+      name?: string;
+      context_length?: number;
+      contextLength?: number;
+    }>;
+  }>(modelsUrlForLlmProvider(config.provider, baseUrl), headers);
 
   const models = (json.data ?? [])
-    .filter((model) =>
-      config.provider === "openai"
-        ? isOpenAITextModelId(model.id)
-        : true,
-    )
+    .filter((model) => isProviderTextModelId(model.id, config))
     .map((model) => ({
-      modelName: model.id,
+      modelName: model.display_name ?? model.name ?? model.id,
       canonicalSlug: model.id,
-      contextLength: 0,
+      contextLength: model.context_length ?? model.contextLength ?? 0,
       completionCost: 0,
       promptCost: 0,
     }));

@@ -7,6 +7,9 @@ import type { PopulateColumn } from "../../pipeline/populate.js";
 
 function buildRefreshInstructions(columns: PopulateColumn[]): string {
   const columnNames = columns.map((c) => c.name);
+  const dataExample = columnNames
+    .map((n) => `{"column": "${n}", "value": "value"}`)
+    .join(", ");
   const columnsDesc = columns
     .map(
       (c) =>
@@ -25,7 +28,7 @@ RULES:
 - If no "Previously found via" steps are provided, fall back to fetching the source URLs directly.
 - If a source returns a 404, timeout, or is blocked, note it and move to the next.
 - Compare the fetched data with the existing row data carefully.
-- If data has MEANINGFULLY changed (not just formatting differences), call update_row with the FULL updated data object (all columns, not just changed ones), plus updated sources, row_summary, and how_found.
+- If data has MEANINGFULLY changed (not just formatting differences), call update_row with the FULL updated row data (all columns, not just changed ones), plus updated sources, row_summary, and how_found.
 - If NO sources work (all 404/blocked), try ONE web search using the primary key values to find a current source.
 - If the data is unchanged, do NOT call update_row. Just report your findings.
 - Never fabricate values. If you can't verify a field, keep the existing value.
@@ -33,7 +36,7 @@ RULES:
 TOOL CALL FORMAT — every tool call argument must be a JSON object wrapped in curly braces:
   fetch_page: {"url": "https://example.com"}
   search_web: {"query": "your search terms"}
-  update_row: {"rowId": "<id>", "data": {${columnNames.map((n) => `"${n}": "value"`).join(", ")}}, "sources": ["https://..."], "row_summary": "one line about this entity", "how_found": "how you verified this data"}
+  update_row: {"rowId": "<id>", "data": [${dataExample}], "sources": ["https://..."], "row_summary": "one line about this entity", "how_found": "how you verified this data"}
 
 WORKFLOW:
 1. Fetch the provided source URLs (1-2 calls).

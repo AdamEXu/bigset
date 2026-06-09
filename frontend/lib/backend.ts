@@ -2,7 +2,7 @@ export interface InferredSchema {
   dataset_name: string;
   description: string;
   columns: InferredColumn[];
-  primary_key: string;
+  primary_key: string[];
   retrieval_strategy: "search_fetch" | "browser" | "hybrid";
   source_hint: string;
 }
@@ -63,7 +63,23 @@ export interface OpenRouterModel {
   promptCost: number;
 }
 
-export type LlmProviderType = "openrouter" | "openai" | "anthropic" | "custom";
+export type LlmProviderType =
+  | "openrouter"
+  | "openai"
+  | "anthropic"
+  | "google"
+  | "xai"
+  | "deepseek"
+  | "qwen"
+  | "mistral"
+  | "groq"
+  | "togetherai"
+  | "deepinfra"
+  | "fireworks"
+  | "huggingface"
+  | "ollama"
+  | "lmstudio"
+  | "custom";
 
 export interface ServiceSetupStatus {
   configured: boolean;
@@ -149,7 +165,7 @@ export async function saveOpenRouterApiKey(
   return saveLlmProviderConfig({
     provider: "openrouter",
     apiKey,
-    defaultModel: "openai/gpt-5.4-mini",
+    defaultModel: "anthropic/claude-sonnet-4.6",
   });
 }
 
@@ -208,7 +224,7 @@ export async function getModelConfig(token: string): Promise<EffectiveModelConfi
  * and does a partial upsert — only the fields provided in the body are updated.
  * Unset fields retain their existing values.
  *
- * @param config - A partial model config. e.g. { schemaInference: "google/gemini-2.0-flash-001" }
+ * @param config - A partial model config. e.g. { schemaInference: "gemini-3.5-flash" }
  *                Only the roles the user wants to change need to be included.
  * @param token - Clerk JWT obtained via getToken()
  *

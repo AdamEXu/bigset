@@ -732,9 +732,12 @@ fastify.post("/local-setup/llm-provider", async (req, reply) => {
 
   try {
     const apiKey = body.apiKey?.trim() ?? "";
-    const isNewCustomWithoutKey = provider === "custom" && !!body.baseUrl?.trim();
+    const isKeylessProvider =
+      provider === "custom" || provider === "ollama" || provider === "lmstudio";
+    const isNewKeylessProvider =
+      isKeylessProvider && (provider !== "custom" || !!body.baseUrl?.trim());
 
-    if (!apiKey && !isNewCustomWithoutKey) {
+    if (!apiKey && !isNewKeylessProvider) {
       const status = await getLocalSetupStatus();
       const savedProvider = status.services.llmProviders?.[provider];
       if (!savedProvider?.configured) {

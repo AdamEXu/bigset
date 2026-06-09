@@ -3,6 +3,18 @@ export const LOCAL_CREDENTIAL_SERVICES = [
   "openrouter",
   "openai",
   "anthropic",
+  "google",
+  "xai",
+  "deepseek",
+  "qwen",
+  "mistral",
+  "groq",
+  "togetherai",
+  "deepinfra",
+  "fireworks",
+  "huggingface",
+  "ollama",
+  "lmstudio",
   "custom",
 ] as const;
 

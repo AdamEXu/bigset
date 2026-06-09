@@ -6,6 +6,7 @@ import {
   setKeychainCredential,
 } from "./local-keychain-client.js";
 import {
+  LLM_PROVIDER_TYPES,
   defaultBaseUrlForLlmProvider,
   defaultModelForLlmProvider,
   isLlmProviderType,
@@ -93,29 +94,33 @@ async function localCredential(service: LocalCredentialService): Promise<{
       }
     | null;
 
+  const rowProvider = isLlmProviderType(rowData?.llmProvider)
+    ? rowData.llmProvider
+    : undefined;
+  const rowBaseUrl =
+    typeof rowData?.llmBaseUrl === "string" ? rowData.llmBaseUrl : undefined;
+  if (
+    rowProvider &&
+    service === rowProvider &&
+    ["custom", "ollama", "lmstudio"].includes(rowProvider) &&
+    rowBaseUrl
+  ) {
+    return {
+      apiKey: "",
+      connectionMethod: rowData?.connectionMethod ?? "api_key",
+      verifiedAt: rowData?.verifiedAt ?? null,
+      keychainAccount: rowData?.keychainAccount ?? "",
+      llmProvider: rowProvider,
+      llmBaseUrl: rowBaseUrl,
+      llmDefaultModel:
+        typeof rowData?.llmDefaultModel === "string"
+          ? rowData.llmDefaultModel
+          : undefined,
+    };
+  }
+
   const keychain = await getKeychainCredential(service);
   if (!keychain?.apiKey) {
-    // LM Studio and many local OpenAI-compatible servers do not require an
-    // API key. A custom-provider row with a base URL is therefore a valid
-    // local credential even when there is no keychain secret.
-    if (
-      service === "custom" &&
-      rowData?.llmProvider === "custom" &&
-      typeof rowData.llmBaseUrl === "string"
-    ) {
-      return {
-        apiKey: "",
-        connectionMethod: rowData.connectionMethod ?? "api_key",
-        verifiedAt: rowData.verifiedAt ?? null,
-        keychainAccount: rowData.keychainAccount ?? "",
-        llmProvider: "custom",
-        llmBaseUrl: rowData.llmBaseUrl,
-        llmDefaultModel:
-          typeof rowData.llmDefaultModel === "string"
-            ? rowData.llmDefaultModel
-            : undefined,
-      };
-    }
     return null;
   }
 
@@ -358,12 +363,7 @@ export async function getLocalSetupStatus(): Promise<LocalSetupStatus> {
       };
 
   const providerStatuses = {} as Record<LlmProviderType, ServiceSetupStatus>;
-  for (const provider of [
-    "openrouter",
-    "openai",
-    "anthropic",
-    "custom",
-  ] as const) {
+  for (const provider of LLM_PROVIDER_TYPES) {
     const credential = await localCredentialForLlmProvider(provider);
     providerStatuses[provider] = credential
       ? {

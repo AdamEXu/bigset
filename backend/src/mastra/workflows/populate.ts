@@ -174,7 +174,7 @@ const buildPromptStep = createStep({
 
     const pkNote =
       pkColumns.length > 0
-        ? `\nPrimary key column(s): ${pkColumns.map((c) => `"${c.name}"`).join(", ")}. When calling run_subagent, you MUST pass these values in the primary_keys field. The subagent will research and fill in the remaining columns.`
+        ? `\nPrimary key column(s): ${pkColumns.map((c) => `"${c.name}"`).join(", ")}. When calling run_subagent, you MUST pass these values in the primary_keys field as an array of {"column": "column_name", "value": "value"} entries. The subagent will research and fill in the remaining columns.`
         : "";
 
     let manifestNote = "";
@@ -202,6 +202,7 @@ ${columnsDesc}${pkNote}${manifestNote}${strategyNote}
 
 Search the web broadly to find real entities that fit this dataset topic.
 For each lead you find, call run_subagent with the primary key values and any context/URLs you have found.
+Example primary_keys format: [{"column": "company_name", "value": "Stripe"}]
 If run_subagent returns ROW_LIMIT_REACHED, stop immediately and do not make any more tool calls.
 Stop the populate run as soon as the dataset reaches ${inputData.maxRowCount} rows.`;
 
