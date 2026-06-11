@@ -6,7 +6,7 @@ import { FETCH_TIMEOUT_MS } from "../fetch-timeout.js";
 import { getTinyFishApiKey, tinyFishHeaders } from "../local-credentials.js";
 import type { PopulateColumn } from "../pipeline/populate.js";
 
-type ExtractorStatus = "inserted" | "miss" | "failed";
+type ExtractorStatus = "inserted" | "updated" | "unchanged" | "miss" | "failed";
 
 export interface TryRowExtractorInput {
   datasetId: string;
@@ -14,6 +14,11 @@ export interface TryRowExtractorInput {
   primaryKeys: Record<string, string>;
   urls?: string[];
   context?: string;
+}
+
+export interface TryRefreshRowExtractorInput extends TryRowExtractorInput {
+  rowId: string;
+  existingData: Record<string, unknown>;
 }
 
 export interface TryRowExtractorResult {
@@ -68,6 +73,10 @@ const GITHUB_HOSTS = new Set(["github.com", "www.github.com"]);
 const BROWSER_TIMEOUT_MS = 45_000;
 const CDP_CONNECT_TIMEOUT_MS = 45_000;
 const BROWSER_ATTEMPTS = 2;
+const GITHUB_EXTRACTOR_HOW_FOUND =
+  "Opened the GitHub repository URL with TinyFish Browser and extracted repository facts from the rendered page.";
+const GITHUB_REFRESH_HOW_FOUND =
+  "Refreshed the GitHub repository URL with TinyFish Browser and extracted repository facts from the rendered page.";
 
 export async function tryRowExtractor(
   input: TryRowExtractorInput,
@@ -98,19 +107,14 @@ export async function tryRowExtractor(
       datasetId: input.datasetId,
       data: row,
       sources: [facts.url],
-      rowSummary: facts.description
-        ? `${facts.fullName}: ${facts.description}`
-        : facts.fullName,
-      howFound:
-        "Opened the GitHub repository URL with TinyFish Browser and extracted repository facts from the rendered page.",
+      rowSummary: githubRowSummary(facts),
+      howFound: GITHUB_EXTRACTOR_HOW_FOUND,
     });
 
     return {
       status: "inserted",
       reason: "Inserted by GitHub row extractor",
-      rowSummary: facts.description
-        ? `${facts.fullName}: ${facts.description}`
-        : facts.fullName,
+      rowSummary: githubRowSummary(facts),
       sources: [facts.url],
     };
   } catch (err) {
@@ -121,6 +125,62 @@ export async function tryRowExtractor(
         reason: `${msg} Move on to the next entity.`,
       };
     }
+    return { status: "failed", reason: msg };
+  }
+}
+
+export async function tryRefreshRowExtractor(
+  input: TryRefreshRowExtractorInput,
+): Promise<TryRowExtractorResult> {
+  if (!ENABLED_VALUES.has((process.env.ROW_EXTRACTORS_ENABLED ?? "").toLowerCase())) {
+    return { status: "miss", reason: "row extractors are disabled" };
+  }
+
+  const url = firstCandidateUrl(input);
+  if (!url) return { status: "miss", reason: "no URL primary key or candidate URL" };
+
+  const repoRef = parseGitHubRepoUrl(url);
+  if (!repoRef) {
+    return { status: "miss", reason: `unsupported URL host: ${safeHost(url)}` };
+  }
+
+  try {
+    const facts = await extractGitHubRepoFacts(url, input.datasetId);
+    const row = buildGitHubRow(input.columns, input.primaryKeys, facts);
+    if (!row) {
+      return {
+        status: "miss",
+        reason: "GitHub extractor could not satisfy all requested columns",
+      };
+    }
+
+    const changedColumns = changedColumnNames(row, input.existingData, input.columns);
+    if (changedColumns.length === 0) {
+      return {
+        status: "unchanged",
+        reason: "Verified unchanged by GitHub row extractor",
+        rowSummary: githubRowSummary(facts),
+        sources: [facts.url],
+      };
+    }
+
+    await convex.mutation(internal.datasetRows.update, {
+      id: input.rowId,
+      expectedDatasetId: input.datasetId,
+      data: row,
+      sources: [facts.url],
+      rowSummary: githubRowSummary(facts),
+      howFound: GITHUB_REFRESH_HOW_FOUND,
+    });
+
+    return {
+      status: "updated",
+      reason: `Updated by GitHub row extractor (${changedColumns.join(", ")})`,
+      rowSummary: githubRowSummary(facts),
+      sources: [facts.url],
+    };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
     return { status: "failed", reason: msg };
   }
 }
@@ -450,6 +510,55 @@ function buildGitHubRow(
   }
 
   return row;
+}
+
+function githubRowSummary(facts: GitHubRepoFacts): string {
+  return facts.description ? `${facts.fullName}: ${facts.description}` : facts.fullName;
+}
+
+function changedColumnNames(
+  nextRow: Record<string, string | number | boolean>,
+  existingData: Record<string, unknown>,
+  columns: PopulateColumn[],
+): string[] {
+  return columns
+    .filter((column) => !valuesEqualForColumn(nextRow[column.name], existingData[column.name], column))
+    .map((column) => column.name);
+}
+
+function valuesEqualForColumn(
+  nextValue: string | number | boolean | undefined,
+  existingValue: unknown,
+  column: PopulateColumn,
+): boolean {
+  if (nextValue === undefined) return existingValue === undefined || existingValue === "";
+
+  switch (column.type) {
+    case "number": {
+      const existingNumber =
+        typeof existingValue === "number"
+          ? existingValue
+          : Number(String(existingValue ?? "").replace(/,/g, ""));
+      return Number.isFinite(existingNumber) && existingNumber === nextValue;
+    }
+    case "boolean":
+      if (typeof existingValue === "boolean") return existingValue === nextValue;
+      if (/^(true|yes)$/i.test(String(existingValue))) return nextValue === true;
+      if (/^(false|no)$/i.test(String(existingValue))) return nextValue === false;
+      return false;
+    case "date": {
+      const nextDate = new Date(String(nextValue));
+      const existingDate = new Date(String(existingValue ?? ""));
+      return (
+        Number.isFinite(nextDate.getTime()) &&
+        Number.isFinite(existingDate.getTime()) &&
+        nextDate.getTime() === existingDate.getTime()
+      );
+    }
+    case "url":
+    case "text":
+      return String(existingValue ?? "").trim() === String(nextValue).trim();
+  }
 }
 
 function findPrimaryKeyValue(

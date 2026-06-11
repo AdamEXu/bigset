@@ -8,6 +8,7 @@ import { requireOpenRouterApiKey } from "../../local-credentials.js";
 import { RunMetrics } from "../run-metrics.js";
 import { saveRunMetrics } from "../save-run-metrics.js";
 import { getSignal } from "../../abort-registry.js";
+import { tryRefreshRowExtractor } from "../../row-extractors/try-row-extractor.js";
 
 export const updateInputSchema = datasetContextSchema.extend({
   authContext: authContextSchema,
@@ -100,17 +101,60 @@ const refreshRowsStep = createStep({
 
     const metrics = new RunMetrics();
     const startedAt = Date.now();
-    const openRouterApiKey = await requireOpenRouterApiKey();
+    let openRouterApiKeyPromise: ReturnType<typeof requireOpenRouterApiKey> | undefined;
+    const getOpenRouterApiKey = () => {
+      openRouterApiKeyPromise ??= requireOpenRouterApiKey();
+      return openRouterApiKeyPromise;
+    };
 
     const pkColumns = columns.filter((c) => c.isPrimaryKey);
 
     async function processRow(row: z.infer<typeof rowSchema>) {
       try {
+        const primaryKeyRecord = Object.fromEntries(
+          pkColumns
+            .map((column) => [column.name, String(row.data[column.name] ?? "").trim()])
+            .filter(([, value]) => value.length > 0),
+        );
+
+        const extractorResult = await tryRefreshRowExtractor({
+          datasetId,
+          rowId: row._id,
+          columns,
+          primaryKeys: primaryKeyRecord,
+          existingData: row.data,
+          urls: row.sources,
+          context: [row.rowSummary, row.howFound].filter(Boolean).join("\n"),
+        });
+
+        if (extractorResult.status === "updated") {
+          updatedCount++;
+          metrics.rowsUpdated++;
+          console.log(
+            `[refresh-rows] Row ${row._id}: updated=true via=row_extractor reason="${extractorResult.reason}"`,
+          );
+          return;
+        }
+
+        if (extractorResult.status === "unchanged") {
+          console.log(
+            `[refresh-rows] Row ${row._id}: updated=false via=row_extractor reason="${extractorResult.reason}"`,
+          );
+          return;
+        }
+
+        if (extractorResult.status === "failed") {
+          if (getSignal(datasetId)?.aborted) throwAbortError();
+          console.warn(
+            `[refresh-rows] Row ${row._id}: row extractor failed; falling back to refresh agent: ${extractorResult.reason}`,
+          );
+        }
+
         const agent = buildRefreshAgent(
           datasetId,
           authContext,
           columns,
-          openRouterApiKey,
+          await getOpenRouterApiKey(),
         );
 
         const pkBlock =
@@ -241,6 +285,12 @@ ${row.howFound ? `\nPreviously found via: ${row.howFound}` : ""}`;
     return { updatedCount, totalCount: rows.length, errors };
   },
 });
+
+function throwAbortError(): never {
+  const err = new Error("Run was stopped");
+  err.name = "AbortError";
+  throw err;
+}
 
 export const updateWorkflow = createWorkflow({
   id: "update-workflow",
