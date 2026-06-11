@@ -79,7 +79,11 @@ export default function ModelSettingsPage() {
         return getModelConfig(token);
       })
       .then((config) => {
-        if (active) setEffectiveConfig(config);
+        if (active) {
+          setEffectiveConfig(config);
+          setExtractorConcurrency(config.rowExtractorConcurrency);
+          setExtractorAttempts(config.rowExtractorBrowserAttempts);
+        }
       })
       .catch(() => {
         if (active) setEffectiveConfig(null);
@@ -99,12 +103,6 @@ export default function ModelSettingsPage() {
       .then(syncLlmProvider)
       .catch(() => setLlmProvider("openrouter"));
   }, [syncLlmProvider]);
-
-  useEffect(() => {
-    if (!effectiveConfig) return;
-    setExtractorConcurrency(effectiveConfig.rowExtractorConcurrency);
-    setExtractorAttempts(effectiveConfig.rowExtractorBrowserAttempts);
-  }, [effectiveConfig]);
 
   const models: OpenRouterModel[] = convexModels
     ? convexModels.map((m) => ({
