@@ -418,13 +418,19 @@ export async function fetchModelsForCurrentLlmProvider(): Promise<OpenRouterMode
 }
 
 /**
- * Local/custom OpenAI-compatible endpoints whose full model catalog we cannot
- * reliably enumerate. Slugs for these providers are accepted as-is; for every
- * other provider a saved slug must appear in the provider's live model list.
+ * Providers whose full model catalog we cannot reliably enumerate, so a
+ * membership check would produce false rejections:
+ *   - custom / ollama / lmstudio — local/custom OpenAI-compatible endpoints
+ *   - qwen — served from a small static stub (QWEN_MODELS), not a live catalog
+ * Slugs for these providers are accepted as-is; for every other provider a
+ * saved slug must appear in the provider's live model list.
  */
 export function providerAllowsAnyModelSlug(provider: LlmProviderType): boolean {
   return (
-    provider === "custom" || provider === "ollama" || provider === "lmstudio"
+    provider === "custom" ||
+    provider === "ollama" ||
+    provider === "lmstudio" ||
+    provider === "qwen"
   );
 }
 
@@ -449,7 +455,19 @@ export async function findUnsupportedModelSlugs(
 
   const models = await fetchModelsForCurrentLlmProvider();
   const available = new Set(models.map((m) => m.canonicalSlug));
-  return slugs.filter((slug) => !available.has(slug));
+  let missing = slugs.filter((slug) => !available.has(slug));
+
+  // OpenRouter is served from a persistent Convex cache with no TTL, so a
+  // stale cache that predates a model's release would falsely reject a slug the
+  // provider actually offers. Refresh once and re-check before rejecting.
+  if (missing.length > 0 && config?.provider === "openrouter") {
+    const fresh = await fetchModelsFromOpenRouter();
+    await upsertModelBatch(fresh);
+    const refreshed = new Set(fresh.map((m) => m.canonicalSlug));
+    missing = missing.filter((slug) => !refreshed.has(slug));
+  }
+
+  return missing;
 }
 
 /**
