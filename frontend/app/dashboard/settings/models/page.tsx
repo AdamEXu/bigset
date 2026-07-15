@@ -42,6 +42,7 @@ export default function ModelSettingsPage() {
   );
   const activeModelListCacheKeyRef = useRef(activeModelListCacheKey);
   const [isSavingModel, setIsSavingModel] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [modelConfigReloadKey, setModelConfigReloadKey] = useState(0);
 
   const needsOpenRouterCache = !isLocalMode || llmProvider === "openrouter";
@@ -122,6 +123,7 @@ export default function ModelSettingsPage() {
     if (!nextModelId) return;
 
     setIsSavingModel(true);
+    setSaveError(null);
     try {
       const token = await getToken();
       if (!token) throw new Error("Not authenticated");
@@ -130,19 +132,23 @@ export default function ModelSettingsPage() {
         prev ? { ...prev, [role.key]: nextModelId } : null
       );
       setActiveSheet(null);
-    } catch {
-      // we will add toast later
+    } catch (err) {
+      setSaveError(
+        err instanceof Error ? err.message : "Failed to save model preference.",
+      );
     } finally {
       setIsSavingModel(false);
     }
   }
 
   function openSideSheet(role: ModelRole) {
+    setSaveError(null);
     const cacheKey = activeModelListCacheKeyRef.current || activeModelListCacheKey;
     if (sheetModels.length === 0 || sheetModelsCacheKey !== cacheKey) {
       setSheetModels([]);
       setSheetModelsCacheKey(cacheKey);
-      getLlmProviderModels()
+      getToken()
+        .then((token) => getLlmProviderModels(token ?? undefined))
         .then((models) => {
           if (activeModelListCacheKeyRef.current !== cacheKey) return;
           setSheetModels(models);
@@ -224,7 +230,12 @@ export default function ModelSettingsPage() {
       {activeSheet && (
         <ModelSideSheet
           open={true}
-          onClose={() => !isSavingModel && setActiveSheet(null)}
+          onClose={() => {
+            if (isSavingModel) return;
+            setSaveError(null);
+            setActiveSheet(null);
+          }}
+          error={saveError}
           title={`Select ${activeSheet.role.label} Model`}
           selectedModel={getSelectedModel(activeSheet.role)}
           models={sideSheetModels}
@@ -240,7 +251,8 @@ export default function ModelSettingsPage() {
                 if (!token) throw new Error("Not authenticated");
                 models = await refreshOpenRouterModels(token);
               } else {
-                models = await getLlmProviderModels();
+                const token = await getToken();
+                models = await getLlmProviderModels(token ?? undefined);
               }
               if (activeModelListCacheKeyRef.current !== cacheKey) return;
               setSheetModelsCacheKey(cacheKey);

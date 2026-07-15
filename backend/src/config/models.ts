@@ -12,6 +12,7 @@ import {
   defaultBaseUrlForLlmProvider,
   defaultModelForLlmProviderRole,
   modelsUrlForLlmProvider,
+  type LlmProviderType,
   type ModelRoleKey,
 } from "./llm.js";
 
@@ -414,6 +415,41 @@ export async function fetchModelsForCurrentLlmProvider(): Promise<OpenRouterMode
     }));
 
   return sortModels(models);
+}
+
+/**
+ * Local/custom OpenAI-compatible endpoints whose full model catalog we cannot
+ * reliably enumerate. Slugs for these providers are accepted as-is; for every
+ * other provider a saved slug must appear in the provider's live model list.
+ */
+export function providerAllowsAnyModelSlug(provider: LlmProviderType): boolean {
+  return (
+    provider === "custom" || provider === "ollama" || provider === "lmstudio"
+  );
+}
+
+/**
+ * Hard-validate the slugs a user is trying to save against the CURRENT LLM
+ * provider's actual model list. Returns the subset of slugs the provider does
+ * not offer (empty array = all valid).
+ *
+ * Local/custom endpoints (see {@link providerAllowsAnyModelSlug}) are exempt —
+ * their catalogs can't be enumerated — so they always return an empty array.
+ *
+ * Throws if the provider's model list can't be fetched, so callers can fail
+ * closed rather than persist a slug that will only break at runtime.
+ */
+export async function findUnsupportedModelSlugs(
+  slugs: string[],
+): Promise<string[]> {
+  if (slugs.length === 0) return [];
+
+  const config = await getLlmProviderConfig();
+  if (config && providerAllowsAnyModelSlug(config.provider)) return [];
+
+  const models = await fetchModelsForCurrentLlmProvider();
+  const available = new Set(models.map((m) => m.canonicalSlug));
+  return slugs.filter((slug) => !available.has(slug));
 }
 
 /**

@@ -14,6 +14,7 @@ interface ModelSideSheetProps {
   onRefresh?: () => Promise<void>;
   isRefreshing?: boolean;
   isSaving?: boolean;
+  error?: string | null;
 }
 
 function groupModelsByProvider(models: OpenRouterModel[]): Record<string, OpenRouterModel[]> {
@@ -68,6 +69,7 @@ export function ModelSideSheet({
   onRefresh,
   isRefreshing,
   isSaving,
+  error,
 }: ModelSideSheetProps) {
   const [search, setSearch] = useState("");
   const [customSlug, setCustomSlug] = useState(selectedModel);
@@ -187,6 +189,11 @@ export function ModelSideSheet({
               Use
             </button>
           </form>
+          {error && (
+            <p role="alert" className="text-xs text-red-500">
+              {error}
+            </p>
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto">

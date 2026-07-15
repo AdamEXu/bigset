@@ -839,6 +839,12 @@ fastify.get("/openrouter/models", async (req, reply) => {
 });
 
 fastify.get("/llm-provider/models", async (req, reply) => {
+  // Fetching provider models exercises configured provider credentials and
+  // rate limits, so it must not be public. In local mode requireAuth passes
+  // through (single local user); in prod it enforces a valid Clerk token.
+  await requireAuth(req, reply);
+  if (reply.sent) return;
+
   const { fetchModelsForCurrentLlmProvider } = await import("./config/models.js");
   try {
     const models = await fetchModelsForCurrentLlmProvider();
@@ -864,7 +870,7 @@ await fastify.register(async (instance) => {
   });
 
   instance.post("/settings/models", async (req, reply) => {
-    const { upsertModelConfig, fetchModelsForCurrentLlmProvider } = await import("./config/models.js");
+    const { upsertModelConfig, findUnsupportedModelSlugs } = await import("./config/models.js");
     const body = req.body as {
       schemaInference?: string | null;
       populateOrchestrator?: string | null;
@@ -882,16 +888,23 @@ await fastify.register(async (instance) => {
     if (config.investigateSubagent) toValidate.push({ role: "investigateSubagent", slug: config.investigateSubagent });
 
     if (toValidate.length > 0) {
+      let unsupported: string[];
       try {
-        const models = await fetchModelsForCurrentLlmProvider();
-        for (const { role, slug } of toValidate) {
-          const found = models.some((m) => m.canonicalSlug === slug);
-          if (!found) {
-            req.log.warn({ role, slug }, "Saving model slug that was not returned by the current LLM provider");
-          }
-        }
+        unsupported = await findUnsupportedModelSlugs(toValidate.map((v) => v.slug));
       } catch (err) {
-        req.log.error(err, "Failed to validate model slugs — allowing save");
+        // Fail closed: if we can't confirm the slug against the provider, don't
+        // persist a selection that would only break at inference/populate time.
+        req.log.error(err, "Failed to verify model slugs against the current LLM provider");
+        return reply.code(502).send({
+          error:
+            "Couldn't verify the selected model against the provider. Please try again.",
+        });
+      }
+      const uniqueUnsupported = [...new Set(unsupported)];
+      if (uniqueUnsupported.length > 0) {
+        return reply.code(400).send({
+          error: `Unsupported model${uniqueUnsupported.length > 1 ? "s" : ""}: ${uniqueUnsupported.join(", ")}. Choose a model offered by the current provider.`,
+        });
       }
     }
 

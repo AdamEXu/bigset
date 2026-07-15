@@ -275,9 +275,17 @@ export async function getOpenRouterModels(): Promise<OpenRouterModel[]> {
   return data.models ?? [];
 }
 
-export async function getLlmProviderModels(): Promise<OpenRouterModel[]> {
+/**
+ * Fetch the current LLM provider's selectable model list.
+ *
+ * Requires auth outside local mode (the route exercises provider credentials
+ * and rate limits). Pass a Clerk JWT from the authenticated settings UI; the
+ * local-mode setup flow may call it without a token.
+ */
+export async function getLlmProviderModels(token?: string): Promise<OpenRouterModel[]> {
   const res = await fetch(`${BACKEND_URL}/llm-provider/models`, {
     method: "GET",
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
   });
 
   if (!res.ok) {
