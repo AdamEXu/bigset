@@ -48,11 +48,11 @@ export const env = {
   // In production these are still interpreted as OpenRouter model slugs; in
   // local mode the selected LLM provider's default model is used first.
   SCHEMA_INFERENCE_MODEL:
-    process.env.SCHEMA_INFERENCE_MODEL ?? "anthropic/claude-sonnet-4.6",
+    process.env.SCHEMA_INFERENCE_MODEL ?? "anthropic/claude-sonnet-5",
   POPULATE_ORCHESTRATOR_MODEL:
-    process.env.POPULATE_ORCHESTRATOR_MODEL ?? "qwen/qwen3.7-max",
+    process.env.POPULATE_ORCHESTRATOR_MODEL ?? "anthropic/claude-sonnet-5",
   INVESTIGATE_SUBAGENT_MODEL:
-    process.env.INVESTIGATE_SUBAGENT_MODEL ?? "qwen/qwen3.7-max",
+    process.env.INVESTIGATE_SUBAGENT_MODEL ?? "anthropic/claude-haiku-4.5",
 
   // Resend (transactional email). Optional — when RESEND_API_KEY is unset
   // the email module no-ops with a log line, so local dev works without

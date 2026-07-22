@@ -46,7 +46,7 @@ export interface EffectiveModelConfig {
 }
 
 /**
- * User's saved model preferences — stores the provider model id (e.g. "openai/gpt-5.4-mini" or "gpt-5.4-mini")
+ * User's saved model preferences — stores the provider model id (e.g. "openai/gpt-oss-120b" or "gpt-5.6-terra")
  * for each agent role. Null means no preference saved — backend will use the env default.
  */
 export interface SavedModelConfig {
@@ -165,7 +165,7 @@ export async function saveOpenRouterApiKey(
   return saveLlmProviderConfig({
     provider: "openrouter",
     apiKey,
-    defaultModel: "anthropic/claude-sonnet-4.6",
+    defaultModel: "anthropic/claude-sonnet-5",
   });
 }
 

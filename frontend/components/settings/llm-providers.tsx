@@ -58,7 +58,7 @@ export const LLM_PROVIDER_OPTIONS: LlmProviderOption[] = [
     shortLabel: "Direct API",
     capability: "Hosted",
     authLabel: "API key",
-    defaultModel: "gpt-5.4-mini",
+    defaultModel: "gpt-5.6-terra",
     apiKeyPlaceholder: "sk-...",
     helperHref: "https://platform.openai.com/api-keys",
     iconSrc: "/logos/providers/openai-icon.svg",
@@ -73,7 +73,7 @@ export const LLM_PROVIDER_OPTIONS: LlmProviderOption[] = [
     shortLabel: "Direct API",
     capability: "Hosted",
     authLabel: "API key",
-    defaultModel: "claude-sonnet-4-6",
+    defaultModel: "claude-sonnet-5",
     apiKeyPlaceholder: "sk-ant-...",
     helperHref: "https://console.anthropic.com/settings/keys",
     iconSrc: "/logos/providers/anthropic-icon.svg",
@@ -102,7 +102,7 @@ export const LLM_PROVIDER_OPTIONS: LlmProviderOption[] = [
     shortLabel: "Direct API",
     capability: "Hosted",
     authLabel: "API key",
-    defaultModel: "grok-4.3",
+    defaultModel: "grok-4.5",
     apiKeyPlaceholder: "xai-...",
     helperHref: "https://console.x.ai/",
     iconSrc: "/logos/providers/xai.svg",
@@ -116,7 +116,7 @@ export const LLM_PROVIDER_OPTIONS: LlmProviderOption[] = [
     shortLabel: "Direct API",
     capability: "Hosted",
     authLabel: "API key",
-    defaultModel: "deepseek-chat",
+    defaultModel: "deepseek-v4-pro",
     apiKeyPlaceholder: "sk-...",
     helperHref: "https://platform.deepseek.com/api_keys",
     iconSrc: "/logos/providers/deepseek.svg",
@@ -130,7 +130,7 @@ export const LLM_PROVIDER_OPTIONS: LlmProviderOption[] = [
     shortLabel: "Direct API",
     capability: "Hosted",
     authLabel: "API key",
-    defaultModel: "qwen-plus",
+    defaultModel: "qwen3-max",
     apiKeyPlaceholder: "sk-...",
     helperHref: "https://modelstudio.console.alibabacloud.com/",
     iconSrc: "/logos/providers/qwen.svg",
@@ -144,7 +144,7 @@ export const LLM_PROVIDER_OPTIONS: LlmProviderOption[] = [
     shortLabel: "Direct API",
     capability: "Hosted",
     authLabel: "API key",
-    defaultModel: "mistral-large-latest",
+    defaultModel: "mistral-medium-latest",
     apiKeyPlaceholder: "sk-...",
     helperHref: "https://console.mistral.ai/api-keys/",
     iconSrc: "/logos/providers/mistral-ai.svg",
@@ -172,7 +172,7 @@ export const LLM_PROVIDER_OPTIONS: LlmProviderOption[] = [
     shortLabel: "Direct API",
     capability: "Hosted",
     authLabel: "API key",
-    defaultModel: "Qwen/Qwen3.5-397B-A17B",
+    defaultModel: "zai-org/GLM-5.2",
     apiKeyPlaceholder: "tok_...",
     helperHref: "https://api.together.ai/settings/api-keys",
     iconSrc: "/logos/providers/together-ai.svg",
@@ -186,7 +186,7 @@ export const LLM_PROVIDER_OPTIONS: LlmProviderOption[] = [
     shortLabel: "Direct API",
     capability: "Hosted",
     authLabel: "API key",
-    defaultModel: "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+    defaultModel: "deepseek-ai/DeepSeek-V4-Pro",
     apiKeyPlaceholder: "sk-...",
     helperHref: "https://deepinfra.com/dash/api_keys",
     iconSrc: "/logos/providers/deepinfra.svg",
@@ -200,7 +200,7 @@ export const LLM_PROVIDER_OPTIONS: LlmProviderOption[] = [
     shortLabel: "Direct API",
     capability: "Hosted",
     authLabel: "API key",
-    defaultModel: "accounts/fireworks/models/kimi-k2p5",
+    defaultModel: "accounts/fireworks/models/glm-5p2",
     apiKeyPlaceholder: "fw_...",
     helperHref: "https://fireworks.ai/account/api-keys",
     iconSrc: "/logos/providers/fireworks-ai.svg",
@@ -214,7 +214,7 @@ export const LLM_PROVIDER_OPTIONS: LlmProviderOption[] = [
     shortLabel: "Direct API",
     capability: "Hosted",
     authLabel: "API key",
-    defaultModel: "deepseek-ai/DeepSeek-V3-0324",
+    defaultModel: "zai-org/GLM-5.2",
     apiKeyPlaceholder: "hf_...",
     helperHref: "https://huggingface.co/settings/tokens",
     iconSrc: "/logos/providers/huggingface.svg",
@@ -228,7 +228,7 @@ export const LLM_PROVIDER_OPTIONS: LlmProviderOption[] = [
     shortLabel: "Model router",
     capability: "Multi-provider",
     authLabel: "API key or OAuth",
-    defaultModel: "anthropic/claude-sonnet-4.6",
+    defaultModel: "anthropic/claude-sonnet-5",
     apiKeyPlaceholder: "sk-or-...",
     helperHref: "https://openrouter.ai/settings/keys",
     iconSrc: "/logos/providers/openrouter.svg",
@@ -456,8 +456,12 @@ export function LlmProviderSelector({
   value: LlmProviderOptionValue;
   onChange: (provider: LlmProviderOptionValue) => void;
 }) {
-  const [showExperimentalProviders, setShowExperimentalProviders] =
-    useState(false);
+  const [showExperimentalProviders, setShowExperimentalProviders] = useState(
+    // Start expanded when the current selection is an experimental provider, so
+    // a user who already configured e.g. Anthropic doesn't get snapped back to
+    // OpenRouter by the reset effect below the moment the modal opens.
+    () => isExperimentalProvider(value),
+  );
   const orderedOptions = LLM_PROVIDER_GROUPS.flatMap((group) =>
     LLM_PROVIDER_OPTIONS.filter((option) =>
       group.categories.includes(option.category),

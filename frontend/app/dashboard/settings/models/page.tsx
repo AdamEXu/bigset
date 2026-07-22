@@ -267,8 +267,6 @@ export default function ModelSettingsPage() {
           isSaving={isSavingModel}
         />
       )}
-
-
     </SettingsPageLayout>
   );
 }

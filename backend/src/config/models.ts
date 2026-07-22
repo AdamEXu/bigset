@@ -85,64 +85,26 @@ const TEXT_MODEL_EXCLUDE_PATTERNS = [
   "whisper",
 ];
 
+// Static picker list for Qwen (DashScope has no reliable public models
+// endpoint). The newer qwen3.5-* slugs are served in the International /
+// Chinese-mainland deployments; the US (Virginia) region currently only
+// exposes qwen-plus and qwen-flash, so both are kept in the list.
 const QWEN_MODELS: OpenRouterModel[] = [
-  {
-    modelName: "qwen-plus",
-    canonicalSlug: "qwen-plus",
-    contextLength: 0,
-    completionCost: 0,
-    promptCost: 0,
-  },
-  {
-    modelName: "qwen3.5-plus",
-    canonicalSlug: "qwen3.5-plus",
-    contextLength: 0,
-    completionCost: 0,
-    promptCost: 0,
-  },
-  {
-    modelName: "qwen3-max",
-    canonicalSlug: "qwen3-max",
-    contextLength: 0,
-    completionCost: 0,
-    promptCost: 0,
-  },
-  {
-    modelName: "qwen-max",
-    canonicalSlug: "qwen-max",
-    contextLength: 0,
-    completionCost: 0,
-    promptCost: 0,
-  },
-  {
-    modelName: "qwen-flash",
-    canonicalSlug: "qwen-flash",
-    contextLength: 0,
-    completionCost: 0,
-    promptCost: 0,
-  },
-  {
-    modelName: "qwen3-235b-a22b-instruct-2507",
-    canonicalSlug: "qwen3-235b-a22b-instruct-2507",
-    contextLength: 0,
-    completionCost: 0,
-    promptCost: 0,
-  },
-  {
-    modelName: "qwen3-235b-a22b-thinking-2507",
-    canonicalSlug: "qwen3-235b-a22b-thinking-2507",
-    contextLength: 0,
-    completionCost: 0,
-    promptCost: 0,
-  },
-  {
-    modelName: "qwen3-coder-plus",
-    canonicalSlug: "qwen3-coder-plus",
-    contextLength: 0,
-    completionCost: 0,
-    promptCost: 0,
-  },
-];
+  "qwen3-max",
+  "qwen3.5-plus",
+  "qwen3.5-flash",
+  "qwen-max",
+  "qwen-plus",
+  "qwen-flash",
+  "qwen-turbo",
+  "qwen-long",
+].map((slug) => ({
+  modelName: slug,
+  canonicalSlug: slug,
+  contextLength: 0,
+  completionCost: 0,
+  promptCost: 0,
+}));
 
 function isOpenAITextModelId(id: string): boolean {
   const lower = id.toLowerCase();
