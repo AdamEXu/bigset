@@ -528,7 +528,9 @@ export async function getModelConfig(
 export async function fetchModelsFromOpenRouter(): Promise<OpenRouterModel[]> {
   const apiKey = await requireOpenRouterApiKey();
 
-  const baseUrl = (process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1").replace(/\/+$/, "");
+  const baseUrl = (
+    env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1"
+  ).replace(/\/+$/, "");
   const url = new URL(`${baseUrl}/models`);
   url.searchParams.set("output_modalities", "text");
   url.searchParams.set("supported_parameters", "tools");

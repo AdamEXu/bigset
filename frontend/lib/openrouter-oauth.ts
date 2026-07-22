@@ -64,12 +64,13 @@ function isLocalIpv4Hostname(hostname: string): boolean {
   if (octets.some(Number.isNaN)) return false;
 
   const [first, second] = octets;
-  if (first === 0 || first === 10 || first === 127 || first === 192) {
+  if (first === 0 || first === 10 || first === 127) {
     return true;
   }
   if (first === 100 && second >= 64 && second <= 127) return true;
   if (first === 169 && second === 254) return true;
   if (first === 172 && second >= 16 && second <= 31) return true;
+  if (first === 192 && second === 168) return true;
   if (first === 198 && (second === 18 || second === 19)) return true;
 
   return false;
@@ -77,7 +78,17 @@ function isLocalIpv4Hostname(hostname: string): boolean {
 
 function isLocalIpv6Hostname(hostname: string): boolean {
   if (!hostname.includes(":")) return false;
-  if (hostname === "::1" || hostname === "0:0:0:0:0:0:0:1") return true;
+  if (
+    hostname === "::" ||
+    hostname === "::1" ||
+    hostname === "0:0:0:0:0:0:0:0" ||
+    hostname === "0:0:0:0:0:0:0:1"
+  ) {
+    return true;
+  }
+
+  const mappedIpv4 = hostname.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/)?.[1];
+  if (mappedIpv4 && isLocalIpv4Hostname(mappedIpv4)) return true;
 
   const firstSegment = Number.parseInt(hostname.split(":")[0] || "0", 16);
   if (Number.isNaN(firstSegment)) return false;

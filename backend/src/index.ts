@@ -760,52 +760,61 @@ fastify.post("/local-setup/tinyfish", async (req, reply) => {
   }
 });
 
-fastify.post("/local-setup/llm-provider", async (req, reply) => {
-  if (!env.IS_LOCAL_MODE) {
-    return reply.code(404).send({ error: "Not found" });
-  }
-
-  const body = (req.body ?? {}) as Partial<LlmProviderInput>;
-  const provider = body.provider;
-  if (!isLlmProviderType(provider)) {
-    return reply.code(400).send({ error: "Choose a supported LLM provider" });
-  }
-
-  try {
-    const apiKey = body.apiKey?.trim() ?? "";
-    const isKeylessProvider =
-      provider === "custom" || provider === "ollama" || provider === "lmstudio";
-    const isNewKeylessProvider =
-      isKeylessProvider && (provider !== "custom" || !!body.baseUrl?.trim());
-
-    if (!apiKey && !isNewKeylessProvider) {
-      const status = await getLocalSetupStatus();
-      const savedProvider = status.services.llmProviders?.[provider];
-      if (!savedProvider?.configured) {
-        return reply.code(400).send({ error: `${savedProvider?.providerLabel ?? provider} API key is required` });
-      }
-      await setActiveLocalLlmProvider(provider);
-      return await getLocalSetupStatus();
+fastify.post(
+  "/local-setup/llm-provider",
+  { preHandler: requireAuth },
+  async (req, reply) => {
+    if (!env.IS_LOCAL_MODE) {
+      return reply.code(404).send({ error: "Not found" });
     }
 
-    const config = normalizeLlmProviderInput(
-      {
-        provider,
-        apiKey,
-        baseUrl: body.baseUrl,
-        defaultModel: body.defaultModel,
-      },
-      "local",
-    );
-    await verifyLlmProviderConfig(config);
-    await saveLocalLlmProviderConfig(config, "api_key");
-    return await getLocalSetupStatus();
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "LLM provider verification failed";
-    req.log.warn({ err }, "LLM provider local setup verification failed");
-    return reply.code(400).send({ error: message });
-  }
-});
+    const body = (req.body ?? {}) as Partial<LlmProviderInput>;
+    const provider = body.provider;
+    if (!isLlmProviderType(provider)) {
+      return reply.code(400).send({ error: "Choose a supported LLM provider" });
+    }
+
+    try {
+      const apiKey = body.apiKey?.trim() ?? "";
+      const isKeylessProvider =
+        provider === "custom" ||
+        provider === "ollama" ||
+        provider === "lmstudio";
+      const isNewKeylessProvider =
+        isKeylessProvider && (provider !== "custom" || !!body.baseUrl?.trim());
+
+      if (!apiKey && !isNewKeylessProvider) {
+        const status = await getLocalSetupStatus();
+        const savedProvider = status.services.llmProviders?.[provider];
+        if (!savedProvider?.configured) {
+          return reply.code(400).send({
+            error: `${savedProvider?.providerLabel ?? provider} API key is required`,
+          });
+        }
+        await setActiveLocalLlmProvider(provider);
+        return await getLocalSetupStatus();
+      }
+
+      const config = normalizeLlmProviderInput(
+        {
+          provider,
+          apiKey,
+          baseUrl: body.baseUrl,
+          defaultModel: body.defaultModel,
+        },
+        "local",
+      );
+      await verifyLlmProviderConfig(config);
+      await saveLocalLlmProviderConfig(config, "api_key");
+      return await getLocalSetupStatus();
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "LLM provider verification failed";
+      req.log.warn({ err }, "LLM provider local setup verification failed");
+      return reply.code(400).send({ error: message });
+    }
+  },
+);
 
 // Backward-compatible endpoint for older setup UI builds.
 fastify.post("/local-setup/openrouter-key", async (req, reply) => {
@@ -879,23 +888,24 @@ fastify.get("/openrouter/models", async (req, reply) => {
   }
 });
 
-fastify.get("/llm-provider/models", async (req, reply) => {
-  // Fetching provider models exercises configured provider credentials and
-  // rate limits, so it must not be public. In local mode requireAuth passes
-  // through (single local user); in prod it enforces a valid Clerk token.
-  await requireAuth(req, reply);
-  if (reply.sent) return;
-
-  const { fetchModelsForCurrentLlmProvider } = await import("./config/models.js");
-  try {
-    const models = await fetchModelsForCurrentLlmProvider();
-    return { models };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Failed to load models";
-    req.log.error(err, "Failed to load current LLM provider models");
-    return reply.code(500).send({ error: message });
-  }
-});
+fastify.get(
+  "/llm-provider/models",
+  { preHandler: requireAuth },
+  async (req, reply) => {
+    const { fetchModelsForCurrentLlmProvider } = await import(
+      "./config/models.js"
+    );
+    try {
+      const models = await fetchModelsForCurrentLlmProvider();
+      return { models };
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to load models";
+      req.log.error(err, "Failed to load current LLM provider models");
+      return reply.code(500).send({ error: message });
+    }
+  },
+);
 
 // ────────────────────────────────────────────────────────────────────────
 //  Local trusted CLI routes

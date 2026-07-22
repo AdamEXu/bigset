@@ -1,25 +1,12 @@
 import { internalMutation, internalQuery } from "./_generated/server.js";
 import { v } from "convex/values";
+import {
+  LLM_PROVIDER_TYPES,
+  LOCAL_CREDENTIAL_SERVICES,
+} from "../lib/llm-provider-types.js";
 
 const serviceValidator = v.union(
-  v.literal("tinyfish"),
-  v.literal("llm"),
-  v.literal("openrouter"),
-  v.literal("openai"),
-  v.literal("anthropic"),
-  v.literal("google"),
-  v.literal("xai"),
-  v.literal("deepseek"),
-  v.literal("qwen"),
-  v.literal("mistral"),
-  v.literal("groq"),
-  v.literal("togetherai"),
-  v.literal("deepinfra"),
-  v.literal("fireworks"),
-  v.literal("huggingface"),
-  v.literal("ollama"),
-  v.literal("lmstudio"),
-  v.literal("custom"),
+  ...LOCAL_CREDENTIAL_SERVICES.map((service) => v.literal(service)),
 );
 
 const connectionMethodValidator = v.union(
@@ -28,22 +15,7 @@ const connectionMethodValidator = v.union(
 );
 
 const llmProviderValidator = v.union(
-  v.literal("openrouter"),
-  v.literal("openai"),
-  v.literal("anthropic"),
-  v.literal("google"),
-  v.literal("xai"),
-  v.literal("deepseek"),
-  v.literal("qwen"),
-  v.literal("mistral"),
-  v.literal("groq"),
-  v.literal("togetherai"),
-  v.literal("deepinfra"),
-  v.literal("fireworks"),
-  v.literal("huggingface"),
-  v.literal("ollama"),
-  v.literal("lmstudio"),
-  v.literal("custom"),
+  ...LLM_PROVIDER_TYPES.map((provider) => v.literal(provider)),
 );
 
 export const getInternal = internalQuery({
@@ -80,15 +52,29 @@ export const upsertInternal = internalMutation({
       verifiedAt: args.verifiedAt,
       updatedAt: Date.now(),
     };
-    const llmPatch = args.llmProvider !== undefined
-      ? {
-          llmProvider: args.llmProvider,
-          // Explicit undefined clears stale custom-provider values when the
-          // user switches back to OpenAI/Anthropic/OpenRouter.
-          llmBaseUrl: args.llmBaseUrl,
-          llmDefaultModel: args.llmDefaultModel,
-        }
-      : {};
+    const providerChanged =
+      args.llmProvider !== undefined &&
+      args.llmProvider !== existing?.llmProvider;
+    const llmPatch =
+      args.llmProvider !== undefined
+        ? {
+            llmProvider: args.llmProvider,
+            ...(providerChanged
+              ? {
+                  // Clear provider-scoped values when switching providers.
+                  llmBaseUrl: args.llmBaseUrl,
+                  llmDefaultModel: args.llmDefaultModel,
+                }
+              : {
+                  ...(args.llmBaseUrl !== undefined
+                    ? { llmBaseUrl: args.llmBaseUrl }
+                    : {}),
+                  ...(args.llmDefaultModel !== undefined
+                    ? { llmDefaultModel: args.llmDefaultModel }
+                    : {}),
+                }),
+          }
+        : {};
     const llmInsert = args.llmProvider !== undefined
       ? {
           llmProvider: args.llmProvider,

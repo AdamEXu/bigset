@@ -366,6 +366,10 @@ export default function SetupPage() {
           status={status}
           onClose={() => setModal(null)}
           onSaved={(next) => {
+            setModelConfig(null);
+            setModelOptions([]);
+            setModelOptionsCacheKey(null);
+            setModelError(null);
             setStatus(next);
             setModal(null);
           }}
@@ -781,8 +785,16 @@ function initialBaseUrl(
   provider: LlmProviderOptionValue,
 ) {
   const option = llmProviderOption(provider);
+  const activeStatus = status?.services.llm;
+  const activeSelection =
+    activeStatus?.provider === "custom"
+      ? (localLlmPresetForBaseUrl(activeStatus.baseUrl)?.value ?? "custom")
+      : activeStatus?.provider;
+  const providerStatus =
+    status?.services.llmProviders?.[option.provider] ??
+    (activeSelection === provider ? activeStatus : undefined);
   const savedBaseUrl = displayBaseUrl(
-    status?.services.llmProviders?.[option.provider]?.baseUrl,
+    providerStatus?.baseUrl,
   );
   if (option.defaultBaseUrl) return savedBaseUrl || option.defaultBaseUrl;
   if (option.provider === "custom") {

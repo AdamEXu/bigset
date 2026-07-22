@@ -2,48 +2,19 @@ import { query, mutation, internalQuery, internalMutation } from "./_generated/s
 import type { MutationCtx, QueryCtx } from "./_generated/server.js";
 import { v } from "convex/values";
 import { getIdentity } from "./lib/authz.js";
-
-type LlmProvider =
-  | "openrouter"
-  | "openai"
-  | "anthropic"
-  | "google"
-  | "xai"
-  | "deepseek"
-  | "qwen"
-  | "mistral"
-  | "groq"
-  | "togetherai"
-  | "deepinfra"
-  | "fireworks"
-  | "huggingface"
-  | "ollama"
-  | "lmstudio"
-  | "custom";
+import {
+  LLM_PROVIDER_TYPES,
+  type LlmProviderType,
+} from "../lib/llm-provider-types.js";
 
 const providerValidator = v.union(
-  v.literal("openrouter"),
-  v.literal("openai"),
-  v.literal("anthropic"),
-  v.literal("google"),
-  v.literal("xai"),
-  v.literal("deepseek"),
-  v.literal("qwen"),
-  v.literal("mistral"),
-  v.literal("groq"),
-  v.literal("togetherai"),
-  v.literal("deepinfra"),
-  v.literal("fireworks"),
-  v.literal("huggingface"),
-  v.literal("ollama"),
-  v.literal("lmstudio"),
-  v.literal("custom"),
+  ...LLM_PROVIDER_TYPES.map((provider) => v.literal(provider)),
 );
 
 async function findProviderConfig(
   ctx: QueryCtx | MutationCtx,
   userId: string,
-  provider: LlmProvider,
+  provider: LlmProviderType,
 ) {
   const providerRow = await ctx.db
     .query("modelConfig")
@@ -100,7 +71,7 @@ export const upsert = mutation({
     const existing = await findProviderConfig(ctx, identity.subject, provider);
 
     const patch: {
-      provider?: LlmProvider;
+      provider?: LlmProviderType;
       schemaInference?: string;
       populateOrchestrator?: string;
       investigateSubagent?: string;
@@ -149,7 +120,7 @@ export const upsertInternal = internalMutation({
     const existing = await findProviderConfig(ctx, args.userId, provider);
 
     const patch: {
-      provider: LlmProvider;
+      provider: LlmProviderType;
       schemaInference?: string;
       populateOrchestrator?: string;
       investigateSubagent?: string;

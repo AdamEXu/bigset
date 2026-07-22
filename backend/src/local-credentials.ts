@@ -99,6 +99,7 @@ async function localCredential(service: LocalCredentialService): Promise<{
     : undefined;
   const rowBaseUrl =
     typeof rowData?.llmBaseUrl === "string" ? rowData.llmBaseUrl : undefined;
+  const keychain = await getKeychainCredential(service);
   if (
     rowProvider &&
     service === rowProvider &&
@@ -106,10 +107,11 @@ async function localCredential(service: LocalCredentialService): Promise<{
     rowBaseUrl
   ) {
     return {
-      apiKey: "",
+      apiKey: keychain?.apiKey ?? "",
       connectionMethod: rowData?.connectionMethod ?? "api_key",
       verifiedAt: rowData?.verifiedAt ?? null,
-      keychainAccount: rowData?.keychainAccount ?? "",
+      keychainAccount:
+        keychain?.keychainAccount ?? rowData?.keychainAccount ?? "",
       llmProvider: rowProvider,
       llmBaseUrl: rowBaseUrl,
       llmDefaultModel:
@@ -119,7 +121,6 @@ async function localCredential(service: LocalCredentialService): Promise<{
     };
   }
 
-  const keychain = await getKeychainCredential(service);
   if (!keychain?.apiKey) {
     return null;
   }
@@ -241,7 +242,7 @@ export async function getLlmProviderConfig(): Promise<LlmProviderConfig | null> 
     {
       provider: "openrouter",
       apiKey,
-      baseUrl: process.env.OPENROUTER_BASE_URL,
+      baseUrl: env.OPENROUTER_BASE_URL,
       defaultModel: env.SCHEMA_INFERENCE_MODEL,
     },
     "env",
@@ -362,10 +363,10 @@ export async function getLocalSetupStatus(): Promise<LocalSetupStatus> {
         verifiedAt: null,
       };
 
-  const providerStatuses = {} as Record<LlmProviderType, ServiceSetupStatus>;
-  for (const provider of LLM_PROVIDER_TYPES) {
-    const credential = await localCredentialForLlmProvider(provider);
-    providerStatuses[provider] = credential
+  const providerStatusEntries = await Promise.all(
+    LLM_PROVIDER_TYPES.map(async (provider) => {
+      const credential = await localCredentialForLlmProvider(provider);
+      const status: ServiceSetupStatus = credential
       ? {
           configured: true,
           source: "local",
@@ -388,7 +389,12 @@ export async function getLocalSetupStatus(): Promise<LocalSetupStatus> {
           baseUrl: defaultBaseUrlForLlmProvider(provider),
           defaultModel: defaultModelForLlmProvider(provider),
         };
-  }
+      return [provider, status] as const;
+    }),
+  );
+  const providerStatuses = Object.fromEntries(
+    providerStatusEntries,
+  ) as Record<LlmProviderType, ServiceSetupStatus>;
 
   const llmProvider = await activeLlmProviderForStatus();
   const llm = providerStatuses[llmProvider];
@@ -495,7 +501,7 @@ export async function verifyTinyFishApiKey(apiKey: string): Promise<void> {
 
 export async function verifyOpenRouterApiKey(apiKey: string): Promise<void> {
   const baseUrl = (
-    process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1"
+    env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1"
   ).replace(/\/+$/, "");
 
   await withFetchTimeout(

@@ -1,5 +1,17 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import {
+  LLM_PROVIDER_TYPES,
+  LOCAL_CREDENTIAL_SERVICES,
+} from "../lib/llm-provider-types.js";
+
+const llmProviderValidator = v.union(
+  ...LLM_PROVIDER_TYPES.map((provider) => v.literal(provider)),
+);
+
+const localCredentialServiceValidator = v.union(
+  ...LOCAL_CREDENTIAL_SERVICES.map((service) => v.literal(service)),
+);
 
 export default defineSchema({
   datasets: defineTable({
@@ -135,26 +147,7 @@ export default defineSchema({
 
   modelConfig: defineTable({
     userId: v.string(),
-    provider: v.optional(
-      v.union(
-        v.literal("openrouter"),
-        v.literal("openai"),
-        v.literal("anthropic"),
-        v.literal("google"),
-        v.literal("xai"),
-        v.literal("deepseek"),
-        v.literal("qwen"),
-        v.literal("mistral"),
-        v.literal("groq"),
-        v.literal("togetherai"),
-        v.literal("deepinfra"),
-        v.literal("fireworks"),
-        v.literal("huggingface"),
-        v.literal("ollama"),
-        v.literal("lmstudio"),
-        v.literal("custom")
-      )
-    ),
+    provider: v.optional(llmProviderValidator),
     schemaInference: v.optional(v.string()),
     populateOrchestrator: v.optional(v.string()),
     investigateSubagent: v.optional(v.string()),
@@ -163,26 +156,7 @@ export default defineSchema({
     .index("by_user_provider", ["userId", "provider"]),
 
   localCredentials: defineTable({
-    service: v.union(
-      v.literal("tinyfish"),
-      v.literal("llm"),
-      v.literal("openrouter"),
-      v.literal("openai"),
-      v.literal("anthropic"),
-      v.literal("google"),
-      v.literal("xai"),
-      v.literal("deepseek"),
-      v.literal("qwen"),
-      v.literal("mistral"),
-      v.literal("groq"),
-      v.literal("togetherai"),
-      v.literal("deepinfra"),
-      v.literal("fireworks"),
-      v.literal("huggingface"),
-      v.literal("ollama"),
-      v.literal("lmstudio"),
-      v.literal("custom")
-    ),
+    service: localCredentialServiceValidator,
     keychainAccount: v.optional(v.string()),
     connectionMethod: v.union(v.literal("api_key"), v.literal("oauth")),
     verifiedAt: v.number(),
@@ -191,26 +165,7 @@ export default defineSchema({
     // Provider-specific rows store each provider's keychain account and
     // optional custom base URL so users can switch providers without
     // re-entering keys.
-    llmProvider: v.optional(
-      v.union(
-        v.literal("openrouter"),
-        v.literal("openai"),
-        v.literal("anthropic"),
-        v.literal("google"),
-        v.literal("xai"),
-        v.literal("deepseek"),
-        v.literal("qwen"),
-        v.literal("mistral"),
-        v.literal("groq"),
-        v.literal("togetherai"),
-        v.literal("deepinfra"),
-        v.literal("fireworks"),
-        v.literal("huggingface"),
-        v.literal("ollama"),
-        v.literal("lmstudio"),
-        v.literal("custom")
-      )
-    ),
+    llmProvider: v.optional(llmProviderValidator),
     llmBaseUrl: v.optional(v.string()),
     llmDefaultModel: v.optional(v.string()),
     // Legacy only: accepted so the migration can deploy, then cleared by the

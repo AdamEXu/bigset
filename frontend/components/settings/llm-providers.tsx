@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { CircleHelp, Plug, TriangleAlert } from "lucide-react";
 import type { LlmProviderType, ServiceSetupStatus } from "@/lib/backend";
+import { OPENROUTER_DEFAULT_MODEL } from "@/lib/llm-provider-types";
 
 type LlmProviderCategory = "direct" | "router" | "local" | "custom";
 export type LlmProviderOptionValue = LlmProviderType;
@@ -228,7 +229,7 @@ export const LLM_PROVIDER_OPTIONS: LlmProviderOption[] = [
     shortLabel: "Model router",
     capability: "Multi-provider",
     authLabel: "API key or OAuth",
-    defaultModel: "anthropic/claude-sonnet-5",
+    defaultModel: OPENROUTER_DEFAULT_MODEL,
     apiKeyPlaceholder: "sk-or-...",
     helperHref: "https://openrouter.ai/settings/keys",
     iconSrc: "/logos/providers/openrouter.svg",
@@ -456,26 +457,18 @@ export function LlmProviderSelector({
   value: LlmProviderOptionValue;
   onChange: (provider: LlmProviderOptionValue) => void;
 }) {
-  const [showExperimentalProviders, setShowExperimentalProviders] = useState(
-    // Start expanded when the current selection is an experimental provider, so
-    // a user who already configured e.g. Anthropic doesn't get snapped back to
-    // OpenRouter by the reset effect below the moment the modal opens.
-    () => isExperimentalProvider(value),
-  );
+  const [showExperimentalProviders, setShowExperimentalProviders] =
+    useState(() => isExperimentalProvider(value));
+  const experimentalProvidersVisible =
+    showExperimentalProviders || isExperimentalProvider(value);
   const orderedOptions = LLM_PROVIDER_GROUPS.flatMap((group) =>
     LLM_PROVIDER_OPTIONS.filter((option) =>
       group.categories.includes(option.category),
     ),
   ).filter(
     (option) =>
-      showExperimentalProviders || !isExperimentalProvider(option.value),
+      experimentalProvidersVisible || !isExperimentalProvider(option.value),
   );
-
-  useEffect(() => {
-    if (!showExperimentalProviders && isExperimentalProvider(value)) {
-      onChange("openrouter");
-    }
-  }, [onChange, showExperimentalProviders, value]);
 
   function handleExperimentalChange(checked: boolean) {
     setShowExperimentalProviders(checked);
@@ -490,7 +483,7 @@ export function LlmProviderSelector({
         <label className="flex items-center gap-2">
           <input
             type="checkbox"
-            checked={showExperimentalProviders}
+            checked={experimentalProvidersVisible}
             onChange={(event) => handleExperimentalChange(event.target.checked)}
             className="size-4 rounded border-border bg-background accent-foreground"
           />

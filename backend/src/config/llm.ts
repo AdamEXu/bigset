@@ -208,52 +208,52 @@ export function defaultBaseUrlForLlmProvider(
   provider: LlmProviderType,
 ): string | undefined {
   if (provider === "openrouter") {
-    return process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1";
+    return env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1";
   }
   if (provider === "google") {
     return (
-      process.env.GOOGLE_GENERATIVE_AI_BASE_URL ||
+      env.GOOGLE_GENERATIVE_AI_BASE_URL ||
       "https://generativelanguage.googleapis.com/v1beta"
     );
   }
   if (provider === "xai") {
-    return process.env.XAI_BASE_URL || "https://api.x.ai/v1";
+    return env.XAI_BASE_URL || "https://api.x.ai/v1";
   }
   if (provider === "deepseek") {
-    return process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com";
+    return env.DEEPSEEK_BASE_URL || "https://api.deepseek.com";
   }
   if (provider === "qwen") {
     return (
-      process.env.QWEN_BASE_URL ||
+      env.QWEN_BASE_URL ||
       "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
     );
   }
   if (provider === "mistral") {
-    return process.env.MISTRAL_BASE_URL || "https://api.mistral.ai/v1";
+    return env.MISTRAL_BASE_URL || "https://api.mistral.ai/v1";
   }
   if (provider === "groq") {
-    return process.env.GROQ_BASE_URL || "https://api.groq.com/openai/v1";
+    return env.GROQ_BASE_URL || "https://api.groq.com/openai/v1";
   }
   if (provider === "togetherai") {
-    return process.env.TOGETHER_BASE_URL || "https://api.together.xyz/v1";
+    return env.TOGETHER_BASE_URL || "https://api.together.xyz/v1";
   }
   if (provider === "deepinfra") {
-    return process.env.DEEPINFRA_BASE_URL || "https://api.deepinfra.com/v1";
+    return env.DEEPINFRA_BASE_URL || "https://api.deepinfra.com/v1";
   }
   if (provider === "fireworks") {
     return (
-      process.env.FIREWORKS_BASE_URL ||
+      env.FIREWORKS_BASE_URL ||
       "https://api.fireworks.ai/inference/v1"
     );
   }
   if (provider === "huggingface") {
-    return process.env.HUGGINGFACE_BASE_URL || "https://router.huggingface.co/v1";
+    return env.HUGGINGFACE_BASE_URL || "https://router.huggingface.co/v1";
   }
   if (provider === "ollama") {
-    return process.env.OLLAMA_BASE_URL || "http://localhost:11434/v1";
+    return env.OLLAMA_BASE_URL || "http://localhost:11434/v1";
   }
   if (provider === "lmstudio") {
-    return process.env.LM_STUDIO_BASE_URL || "http://localhost:1234/v1";
+    return env.LM_STUDIO_BASE_URL || "http://localhost:1234/v1";
   }
   return undefined;
 }

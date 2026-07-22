@@ -1,3 +1,8 @@
+import {
+  OPENROUTER_DEFAULT_MODEL,
+  type LlmProviderType,
+} from "@/lib/llm-provider-types";
+
 export interface InferredSchema {
   dataset_name: string;
   description: string;
@@ -63,23 +68,7 @@ export interface OpenRouterModel {
   promptCost: number;
 }
 
-export type LlmProviderType =
-  | "openrouter"
-  | "openai"
-  | "anthropic"
-  | "google"
-  | "xai"
-  | "deepseek"
-  | "qwen"
-  | "mistral"
-  | "groq"
-  | "togetherai"
-  | "deepinfra"
-  | "fireworks"
-  | "huggingface"
-  | "ollama"
-  | "lmstudio"
-  | "custom";
+export type { LlmProviderType } from "@/lib/llm-provider-types";
 
 export interface ServiceSetupStatus {
   configured: boolean;
@@ -165,7 +154,7 @@ export async function saveOpenRouterApiKey(
   return saveLlmProviderConfig({
     provider: "openrouter",
     apiKey,
-    defaultModel: "anthropic/claude-sonnet-5",
+    defaultModel: OPENROUTER_DEFAULT_MODEL,
   });
 }
 

@@ -65,20 +65,30 @@ const rowDataCellSchema = z.object({
 
 type RowDataCell = z.infer<typeof rowDataCellSchema>;
 
-function rowDataCellsToRecord(data: RowDataCell[]): Record<string, string> {
-  const row: Record<string, string> = {};
-  for (const cell of data) {
-    row[cell.column] = cell.value;
-  }
-  return row;
+function normalizeDataKey(column: string): string {
+  return column.trim().replace(/^["`]+|["`]+$/g, "").trim();
 }
 
-function cleanDataKeys(data: Record<string, unknown>): Record<string, unknown> {
-  const cleaned: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(data)) {
-    cleaned[key.replace(/^["`]+|["`]+$/g, "")] = value;
+function rowDataCellsToRecord(
+  data: RowDataCell[],
+):
+  | { success: true; data: Record<string, string> }
+  | { success: false; error: string } {
+  const row: Record<string, string> = {};
+  for (const cell of data) {
+    const column = normalizeDataKey(cell.column);
+    if (!column) {
+      return { success: false, error: "Column names cannot be empty." };
+    }
+    if (Object.hasOwn(row, column)) {
+      return {
+        success: false,
+        error: `Duplicate column "${column}". Provide each column only once.`,
+      };
+    }
+    row[column] = cell.value;
   }
-  return cleaned;
+  return { success: true, data: row };
 }
 
 /**
@@ -169,7 +179,9 @@ export function buildPopulateTools(
             'data is required and must include at least one entry like { "column": "column_name", "value": "cell value" }.',
         };
 
-      const cleanedData = cleanDataKeys(rowDataCellsToRecord(data));
+      const normalizedData = rowDataCellsToRecord(data);
+      if (!normalizedData.success) return normalizedData;
+      const cleanedData = normalizedData.data;
       console.log(
         `[insert_row] ${logCtx} cols=${Object.keys(cleanedData).length} sources=${sources?.length ?? 0}`,
       );
@@ -308,7 +320,9 @@ export function buildPopulateTools(
           error: "data is required. Pass the full updated row data entries.",
         };
 
-      const cleanedData = cleanDataKeys(rowDataCellsToRecord(data));
+      const normalizedData = rowDataCellsToRecord(data);
+      if (!normalizedData.success) return normalizedData;
+      const cleanedData = normalizedData.data;
       console.log(
         `[update_row] ${logCtx} row=${rowId} cols=${Object.keys(cleanedData).length}`,
       );

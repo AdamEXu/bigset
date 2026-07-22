@@ -48,7 +48,7 @@ Required env vars (see `.env.example`):
 - `CONVEX_URL` — Convex instance URL
 - `CONVEX_SELF_HOSTED_ADMIN_KEY` — for system-level Convex writes (internal mutations)
 - `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY` — for JWT verification
-- `OPENROUTER_API_KEY` — production default LLM provider key; local mode can use OpenRouter, OpenAI, Anthropic, or custom OpenAI-compatible via setup UI
+- `OPENROUTER_API_KEY` — production default LLM provider key; local mode can use providers including OpenRouter, direct hosted APIs, Ollama, LM Studio, and custom OpenAI-compatible endpoints via the setup UI
 - `TINYFISH_API_KEY` — for web search and fetch (populate agent). Get one at https://agent.tinyfish.ai/api-keys?utm_source=github&utm_medium=organic&utm_campaign=bigset-developer-2026q2
 
 In Docker, these are interpolated from the root `.env` file via `docker-compose.dev.yml`.
