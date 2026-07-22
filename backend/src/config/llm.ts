@@ -17,6 +17,19 @@ import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { env } from "../env.js";
 import { FETCH_TIMEOUT_MS } from "../fetch-timeout.js";
 
+// OpenRouter app attribution — surfaces BigSet in OpenRouter's public app
+// rankings and per-app analytics. HTTP-Referer is the app's unique identifier;
+// X-Title is its display name; X-OpenRouter-Categories places it in the
+// marketplace (BigSet is an autonomous research agent → "personal-agent").
+// Overridable via env for other deployments.
+// https://openrouter.ai/docs/app-attribution
+const OPENROUTER_APP_URL =
+  process.env.OPENROUTER_APP_URL || "https://bigset.tinyfish.ai";
+const OPENROUTER_APP_TITLE =
+  process.env.OPENROUTER_APP_TITLE || "TinyFish BigSet";
+const OPENROUTER_APP_CATEGORIES =
+  process.env.OPENROUTER_APP_CATEGORIES || "personal-agent";
+
 export const LLM_PROVIDER_TYPES = [
   "openrouter",
   "openai",
@@ -350,6 +363,11 @@ export function createLanguageModel(
       const provider = createOpenRouter({
         apiKey: config.apiKey,
         baseURL: config.baseUrl,
+        headers: {
+          "HTTP-Referer": OPENROUTER_APP_URL,
+          "X-Title": OPENROUTER_APP_TITLE,
+          "X-OpenRouter-Categories": OPENROUTER_APP_CATEGORIES,
+        },
       });
       return provider(resolvedModelId);
     }
