@@ -65,7 +65,7 @@ export const env = {
   POPULATE_ORCHESTRATOR_MODEL:
     process.env.POPULATE_ORCHESTRATOR_MODEL ?? "anthropic/claude-sonnet-5",
   INVESTIGATE_SUBAGENT_MODEL:
-    process.env.INVESTIGATE_SUBAGENT_MODEL ?? "anthropic/claude-haiku-4.5",
+    process.env.INVESTIGATE_SUBAGENT_MODEL ?? "openai/gpt-5.6-luna",
 
   // Resend (transactional email). Optional — when RESEND_API_KEY is unset
   // the email module no-ops with a log line, so local dev works without

@@ -86,13 +86,15 @@ const TEXT_MODEL_EXCLUDE_PATTERNS = [
 ];
 
 // Static picker list for Qwen (DashScope has no reliable public models
-// endpoint). The newer qwen3.5-* slugs are served in the International /
-// Chinese-mainland deployments; the US (Virginia) region currently only
-// exposes qwen-plus and qwen-flash, so both are kept in the list.
+// endpoint). The newer qwen3.6-* / qwen3.7-* slugs are served in the
+// International / Chinese-mainland deployments; the US (Virginia) region
+// currently only exposes qwen-plus and qwen-flash, so both are kept in the list.
 const QWEN_MODELS: OpenRouterModel[] = [
-  "qwen3-max",
+  "qwen3.7-max",
+  "qwen3.6-plus",
   "qwen3.5-plus",
   "qwen3.5-flash",
+  "qwen3-max",
   "qwen-max",
   "qwen-plus",
   "qwen-flash",

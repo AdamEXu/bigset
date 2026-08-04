@@ -51,7 +51,7 @@ export interface EffectiveModelConfig {
 }
 
 /**
- * User's saved model preferences — stores the provider model id (e.g. "openai/gpt-oss-120b" or "gpt-5.6-terra")
+ * User's saved model preferences — stores the provider model id (e.g. "openai/gpt-oss-120b" or "gpt-5.6-luna")
  * for each agent role. Null means no preference saved — backend will use the env default.
  */
 export interface SavedModelConfig {
@@ -213,7 +213,7 @@ export async function getModelConfig(token: string): Promise<EffectiveModelConfi
  * and does a partial upsert — only the fields provided in the body are updated.
  * Unset fields retain their existing values.
  *
- * @param config - A partial model config. e.g. { schemaInference: "gemini-3.5-flash" }
+ * @param config - A partial model config. e.g. { schemaInference: "gemini-3.6-flash" }
  *                Only the roles the user wants to change need to be included.
  * @param token - Clerk JWT obtained via getToken()
  *
