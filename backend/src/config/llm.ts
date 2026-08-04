@@ -100,41 +100,70 @@ export const LLM_PROVIDER_DEFAULT_MODELS_BY_ROLE: Record<
     investigateSubagent: env.INVESTIGATE_SUBAGENT_MODEL,
   },
   openai: {
-    schemaInference: "gpt-5.6-luna",
-    populateOrchestrator: "gpt-5.6-luna",
+    // Terra is excluded by policy: Sol and Luna bracket it on both quality and
+    // price, so it never wins a role. Sol handles the two low-volume roles;
+    // Luna (25x cheaper, index 51 vs 59) carries the parallel subagent fan-out.
+    schemaInference: "gpt-5.6-sol",
+    populateOrchestrator: "gpt-5.6-sol",
     investigateSubagent: "gpt-5.6-luna",
   },
   anthropic: {
+    // No cheap tier worth using: Haiku 4.5 is the only sub-Sonnet option and it
+    // pairs a weak intelligence score with a Feb 2025 knowledge cutoff, so the
+    // subagent stays on Sonnet 5. Anthropic bills the full 1M window at a flat
+    // rate (no long-context surcharge), which suits the 80-step orchestrator.
     schemaInference: "claude-sonnet-5",
-    populateOrchestrator: "claude-sonnet-5",
+    populateOrchestrator: "claude-opus-5",
     investigateSubagent: "claude-sonnet-5",
   },
   google: {
+    // 3.6 Flash across the board. Gemini 3.5 Flash-Lite is cheaper but defaults
+    // to "minimal" thinking, which Google documents as causing premature tool
+    // termination on multi-step tasks — exactly the subagent's workload.
     schemaInference: "gemini-3.6-flash",
     populateOrchestrator: "gemini-3.6-flash",
     investigateSubagent: "gemini-3.6-flash",
   },
   xai: {
+    // grok-4.5 is the only model xAI still features; the cheaper grok-4.3 is
+    // billable but undocumented on the models page, so it is not a safe default.
     schemaInference: "grok-4.5",
     populateOrchestrator: "grok-4.5",
     investigateSubagent: "grok-4.5",
   },
   deepseek: {
+    // Flash over Pro deliberately: V4-Flash-0731 is the officially released
+    // model (Pro is still Preview and unbenchmarked), it is ~3x cheaper, it has
+    // 5x the concurrency limit — which the 3-way subagent fan-out needs — and
+    // the Responses API does not support v4-pro at all.
     schemaInference: "deepseek-v4-flash",
     populateOrchestrator: "deepseek-v4-flash",
     investigateSubagent: "deepseek-v4-flash",
   },
   qwen: {
-    schemaInference: "qwen3.7-max",
+    // DashScope bills every token in a request at the tier its total input size
+    // lands in, so a growing agent transcript can reprice the whole call. Only
+    // qwen3.7-max and qwen3.5-flash are flat to 1M, hence their roles here.
+    // Schema inference avoids qwen3.7-max: it is missing from Alibaba's
+    // JSON-mode support list, while qwen3.6-plus is on it.
+    schemaInference: "qwen3.6-plus",
     populateOrchestrator: "qwen3.7-max",
-    investigateSubagent: "qwen3.6-plus",
+    investigateSubagent: "qwen3.5-flash",
   },
   mistral: {
-    schemaInference: "mistral-medium-latest",
+    // Large 3 is both cheaper than Medium 3.5 and rated by Mistral as the
+    // stronger generalist; Medium is their agent/coding-tuned model, so it
+    // takes the orchestrator. Small 4 keeps function calling and structured
+    // outputs at a fraction of Medium's output rate.
+    schemaInference: "mistral-large-latest",
     populateOrchestrator: "mistral-medium-latest",
-    investigateSubagent: "mistral-medium-latest",
+    investigateSubagent: "mistral-small-latest",
   },
   groq: {
+    // Effectively a single-model provider for us: gpt-oss-120b is the only
+    // production model with real structured-output support that also has tool
+    // calling. The Llama models are JSON-object-mode only, everything stronger
+    // is preview-tier, and the compound systems reject user-provided tools.
     schemaInference: "openai/gpt-oss-120b",
     populateOrchestrator: "openai/gpt-oss-120b",
     investigateSubagent: "openai/gpt-oss-120b",
@@ -150,14 +179,22 @@ export const LLM_PROVIDER_DEFAULT_MODELS_BY_ROLE: Record<
     investigateSubagent: "deepseek-ai/DeepSeek-V4-Flash-0731",
   },
   fireworks: {
-    schemaInference: "accounts/fireworks/models/deepseek-v4-flash-0731",
-    populateOrchestrator: "accounts/fireworks/models/deepseek-v4-flash-0731",
-    investigateSubagent: "accounts/fireworks/models/deepseek-v4-flash-0731",
+    // Not the -0731 snapshot: it resolves on Fireworks but has no row in the
+    // serverless pricing table, which Fireworks calls the source of truth, so
+    // it may be dedicated-only. The unsuffixed slug is confirmed serverless.
+    schemaInference: "accounts/fireworks/models/deepseek-v4-flash",
+    populateOrchestrator: "accounts/fireworks/models/deepseek-v4-flash",
+    investigateSubagent: "accounts/fireworks/models/deepseek-v4-flash",
   },
   huggingface: {
-    schemaInference: "zai-org/GLM-5.2",
-    populateOrchestrator: "zai-org/GLM-5.2",
-    investigateSubagent: "deepseek-ai/DeepSeek-V4-Flash-0731",
+    // The ":deepinfra" pin is load-bearing. A bare repo id auto-routes to the
+    // fastest provider, and structured-output support varies per provider for
+    // the same model — Novita and Fireworks serve this one without it, which
+    // would break schema inference intermittently. DeepInfra supports both
+    // tool calling and structured output.
+    schemaInference: "deepseek-ai/DeepSeek-V4-Flash:deepinfra",
+    populateOrchestrator: "deepseek-ai/DeepSeek-V4-Flash:deepinfra",
+    investigateSubagent: "deepseek-ai/DeepSeek-V4-Flash:deepinfra",
   },
   ollama: {
     schemaInference: "",

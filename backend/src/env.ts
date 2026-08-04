@@ -61,7 +61,7 @@ export const env = {
   // In production these are still interpreted as OpenRouter model slugs; in
   // local mode the selected LLM provider's default model is used first.
   SCHEMA_INFERENCE_MODEL:
-    process.env.SCHEMA_INFERENCE_MODEL ?? "anthropic/claude-sonnet-5",
+    process.env.SCHEMA_INFERENCE_MODEL ?? "anthropic/claude-opus-5",
   POPULATE_ORCHESTRATOR_MODEL:
     process.env.POPULATE_ORCHESTRATOR_MODEL ?? "anthropic/claude-sonnet-5",
   INVESTIGATE_SUBAGENT_MODEL:

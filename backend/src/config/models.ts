@@ -91,15 +91,16 @@ const TEXT_MODEL_EXCLUDE_PATTERNS = [
 // currently only exposes qwen-plus and qwen-flash, so both are kept in the list.
 const QWEN_MODELS: OpenRouterModel[] = [
   "qwen3.7-max",
-  "qwen3.6-plus",
-  "qwen3.5-plus",
-  "qwen3.5-flash",
+  "qwen3.6-max-preview",
   "qwen3-max",
   "qwen-max",
+  "qwen3.6-plus",
+  "qwen3.5-plus",
   "qwen-plus",
+  "qwen3.6-flash",
+  "qwen3.5-flash",
   "qwen-flash",
   "qwen-turbo",
-  "qwen-long",
 ].map((slug) => ({
   modelName: slug,
   canonicalSlug: slug,
@@ -191,6 +192,26 @@ function isProviderTextModelId(
 
 function googleModelIdFromName(name: string): string {
   return name.replace(/^models\//, "");
+}
+
+/**
+ * Reduce a slug to the form the provider's own model list uses.
+ *
+ * The Hugging Face router addresses models as `<repo>:<routing-target>`, where
+ * the suffix pins which inference provider serves the request (or picks a
+ * policy like `:cheapest`). Its `/v1/models` listing only ever returns the bare
+ * repo id, so a pinned slug would otherwise look unsupported even though it is
+ * the more precise — and for structured output, the more correct — address.
+ */
+function canonicalModelSlugForProvider(
+  slug: string,
+  provider: LlmProviderType | undefined,
+): string {
+  if (provider === "huggingface") {
+    const separator = slug.lastIndexOf(":");
+    if (separator > 0) return slug.slice(0, separator);
+  }
+  return slug;
 }
 
 function sortModels(models: OpenRouterModel[]): OpenRouterModel[] {
@@ -419,7 +440,10 @@ export async function findUnsupportedModelSlugs(
 
   const models = await fetchModelsForCurrentLlmProvider();
   const available = new Set(models.map((m) => m.canonicalSlug));
-  let missing = slugs.filter((slug) => !available.has(slug));
+  const isAvailable = (slug: string, offered: Set<string>) =>
+    offered.has(slug) ||
+    offered.has(canonicalModelSlugForProvider(slug, config?.provider));
+  let missing = slugs.filter((slug) => !isAvailable(slug, available));
 
   // OpenRouter is served from a persistent Convex cache with no TTL, so a
   // stale cache that predates a model's release would falsely reject a slug the
@@ -428,7 +452,7 @@ export async function findUnsupportedModelSlugs(
     const fresh = await fetchModelsFromOpenRouter();
     await upsertModelBatch(fresh);
     const refreshed = new Set(fresh.map((m) => m.canonicalSlug));
-    missing = missing.filter((slug) => !refreshed.has(slug));
+    missing = missing.filter((slug) => !isAvailable(slug, refreshed));
   }
 
   return missing;
