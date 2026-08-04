@@ -7,6 +7,8 @@ import { env } from "./env.js";
 import clerkAuthPlugin, { requireAuth, getUserEmail } from "./clerk-auth.js";
 import { inferSchema } from "./pipeline/schema-inference.js";
 import { datasetContextSchema, type DatasetContext } from "./pipeline/populate.js";
+import type { ResolvedModelConfig } from "./config/models.js";
+import type { ReasoningLevel } from "./config/llm.js";
 import { populateWorkflow } from "./mastra/workflows/populate.js";
 import { updateWorkflow } from "./mastra/workflows/update.js";
 import { convex, internal } from "./convex.js";
@@ -277,11 +279,7 @@ async function runUpdateWorkflowInBackground({
   authorizedUserId: string;
   logger: FastifyBaseLogger;
   clerk: ClerkClient;
-  modelConfig: {
-    schemaInference: string;
-    populateOrchestrator: string;
-    investigateSubagent: string;
-  };
+  modelConfig: ResolvedModelConfig;
 }): Promise<void> {
   const datasetId = input.datasetId;
   // registerDataset is called by the route handler before void-ing this
@@ -381,11 +379,7 @@ async function runScheduledUpdateWorkflowInBackground({
   run: UpdateWorkflowRun;
   authorizedUserId: string;
   logger: FastifyBaseLogger;
-  modelConfig: {
-    schemaInference: string;
-    populateOrchestrator: string;
-    investigateSubagent: string;
-  };
+  modelConfig: ResolvedModelConfig;
 }): Promise<void> {
   const datasetId = input.datasetId;
   registerDataset(datasetId);
@@ -455,11 +449,7 @@ async function runPopulateWorkflowInBackground({
   authorizedUserId: string;
   logger: FastifyBaseLogger;
   clerk: ClerkClient;
-  modelConfig: {
-    schemaInference: string;
-    populateOrchestrator: string;
-    investigateSubagent: string;
-  };
+  modelConfig: ResolvedModelConfig;
 }): Promise<void> {
   const datasetId = input.datasetId;
 
@@ -1153,21 +1143,46 @@ await fastify.register(async (instance) => {
 
   instance.get("/settings/models", async (req) => {
     const { getModelConfig } = await import("./config/models.js");
+    const { reasoningSupported } = await import("./config/llm.js");
+    const { getLlmProviderConfig } = await import("./local-credentials.js");
     const config = await getModelConfig(req.auth!.userId);
-    return { config };
+    const llmConfig = await getLlmProviderConfig();
+    return {
+      config,
+      // The reasoning control is inert on providers whose SDK exposes no knob,
+      // so the UI disables it rather than pretending the setting applies.
+      reasoningSupported: reasoningSupported(llmConfig?.provider ?? "openrouter"),
+    };
   });
 
   instance.post("/settings/models", async (req, reply) => {
     const { upsertModelConfig, findUnsupportedModelSlugs } = await import("./config/models.js");
+    const { isReasoningLevel } = await import("./config/llm.js");
     const body = req.body as {
       schemaInference?: string | null;
       populateOrchestrator?: string | null;
       investigateSubagent?: string | null;
+      schemaInferenceReasoning?: string | null;
+      populateOrchestratorReasoning?: string | null;
+      investigateSubagentReasoning?: string | null;
     };
+    // An explicit level is stored as an override; "auto" (or anything off the
+    // scale) clears it so the provider/role default applies again.
+    const reasoningOrAuto = (value: unknown) =>
+      isReasoningLevel(value) ? value : undefined;
     const config = {
       schemaInference: typeof body.schemaInference === "string" ? body.schemaInference.trim() || undefined : undefined,
       populateOrchestrator: typeof body.populateOrchestrator === "string" ? body.populateOrchestrator.trim() || undefined : undefined,
       investigateSubagent: typeof body.investigateSubagent === "string" ? body.investigateSubagent.trim() || undefined : undefined,
+      schemaInferenceReasoning: reasoningOrAuto(body.schemaInferenceReasoning),
+      populateOrchestratorReasoning: reasoningOrAuto(body.populateOrchestratorReasoning),
+      investigateSubagentReasoning: reasoningOrAuto(body.investigateSubagentReasoning),
+    };
+    // Sending an explicit null for a reasoning field means "back to auto".
+    const clearReasoning = {
+      schemaInference: body.schemaInferenceReasoning === null,
+      populateOrchestrator: body.populateOrchestratorReasoning === null,
+      investigateSubagent: body.investigateSubagentReasoning === null,
     };
 
     const toValidate: Array<{ role: "schemaInference" | "populateOrchestrator" | "investigateSubagent"; slug: string }> = [];
@@ -1197,11 +1212,18 @@ await fastify.register(async (instance) => {
     }
 
     try {
-      await upsertModelConfig(req.auth!.userId, {
-        schemaInference: config.schemaInference,
-        populateOrchestrator: config.populateOrchestrator,
-        investigateSubagent: config.investigateSubagent,
-      });
+      await upsertModelConfig(
+        req.auth!.userId,
+        {
+          schemaInference: config.schemaInference,
+          populateOrchestrator: config.populateOrchestrator,
+          investigateSubagent: config.investigateSubagent,
+          schemaInferenceReasoning: config.schemaInferenceReasoning,
+          populateOrchestratorReasoning: config.populateOrchestratorReasoning,
+          investigateSubagentReasoning: config.investigateSubagentReasoning,
+        },
+        clearReasoning,
+      );
       return { success: true };
     } catch (err) {
       req.log.error(err, "Failed to save model config");
@@ -1219,16 +1241,18 @@ await fastify.register(async (instance) => {
     try {
       const auth = req.auth;
       let modelSlug = body.modelSlug;
+      let reasoning: ReasoningLevel | undefined;
 
       if (!modelSlug && auth) {
         const { getModelConfig } = await import("./config/models.js");
         const config = await getModelConfig(auth.userId);
-        if (config?.schemaInference) {
-          modelSlug = config.schemaInference;
+        if (config?.schemaInference.model) {
+          modelSlug = config.schemaInference.model;
+          reasoning = config.schemaInference.reasoning;
         }
       }
 
-      const schema = await inferSchema(body.prompt.trim(), modelSlug);
+      const schema = await inferSchema(body.prompt.trim(), modelSlug, reasoning);
       return schema;
     } catch (err) {
       req.log.error(err, "Schema inference failed");

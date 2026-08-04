@@ -62,6 +62,10 @@ export const upsert = mutation({
     schemaInference: v.optional(v.string()),
     populateOrchestrator: v.optional(v.string()),
     investigateSubagent: v.optional(v.string()),
+    // null clears the override (back to auto); undefined leaves it untouched.
+    schemaInferenceReasoning: v.optional(v.union(v.string(), v.null())),
+    populateOrchestratorReasoning: v.optional(v.union(v.string(), v.null())),
+    investigateSubagentReasoning: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
     const identity = await getIdentity(ctx);
@@ -75,10 +79,20 @@ export const upsert = mutation({
       schemaInference?: string;
       populateOrchestrator?: string;
       investigateSubagent?: string;
+      schemaInferenceReasoning?: string | undefined;
+      populateOrchestratorReasoning?: string | undefined;
+      investigateSubagentReasoning?: string | undefined;
     } = { provider };
     if (args.schemaInference !== undefined) patch.schemaInference = args.schemaInference;
     if (args.populateOrchestrator !== undefined) patch.populateOrchestrator = args.populateOrchestrator;
     if (args.investigateSubagent !== undefined) patch.investigateSubagent = args.investigateSubagent;
+    // `null` is a request to clear: patching the field to undefined removes it.
+    if (args.schemaInferenceReasoning !== undefined)
+      patch.schemaInferenceReasoning = args.schemaInferenceReasoning ?? undefined;
+    if (args.populateOrchestratorReasoning !== undefined)
+      patch.populateOrchestratorReasoning = args.populateOrchestratorReasoning ?? undefined;
+    if (args.investigateSubagentReasoning !== undefined)
+      patch.investigateSubagentReasoning = args.investigateSubagentReasoning ?? undefined;
 
     if (existing) {
       await ctx.db.patch(existing._id, patch);
@@ -114,6 +128,10 @@ export const upsertInternal = internalMutation({
     schemaInference: v.optional(v.string()),
     populateOrchestrator: v.optional(v.string()),
     investigateSubagent: v.optional(v.string()),
+    // null clears the override (back to auto); undefined leaves it untouched.
+    schemaInferenceReasoning: v.optional(v.union(v.string(), v.null())),
+    populateOrchestratorReasoning: v.optional(v.union(v.string(), v.null())),
+    investigateSubagentReasoning: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
     const provider = args.provider ?? "openrouter";
@@ -124,10 +142,20 @@ export const upsertInternal = internalMutation({
       schemaInference?: string;
       populateOrchestrator?: string;
       investigateSubagent?: string;
+      schemaInferenceReasoning?: string | undefined;
+      populateOrchestratorReasoning?: string | undefined;
+      investigateSubagentReasoning?: string | undefined;
     } = { provider };
     if (args.schemaInference !== undefined) patch.schemaInference = args.schemaInference;
     if (args.populateOrchestrator !== undefined) patch.populateOrchestrator = args.populateOrchestrator;
     if (args.investigateSubagent !== undefined) patch.investigateSubagent = args.investigateSubagent;
+    // `null` is a request to clear: patching the field to undefined removes it.
+    if (args.schemaInferenceReasoning !== undefined)
+      patch.schemaInferenceReasoning = args.schemaInferenceReasoning ?? undefined;
+    if (args.populateOrchestratorReasoning !== undefined)
+      patch.populateOrchestratorReasoning = args.populateOrchestratorReasoning ?? undefined;
+    if (args.investigateSubagentReasoning !== undefined)
+      patch.investigateSubagentReasoning = args.investigateSubagentReasoning ?? undefined;
 
     if (existing) {
       await ctx.db.patch(existing._id, patch);

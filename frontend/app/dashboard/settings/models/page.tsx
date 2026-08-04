@@ -3,13 +3,14 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { getLocalSetupStatus, getLlmProviderModels, getModelConfig, saveModelConfig, refreshOpenRouterModels, type EffectiveModelConfig, type LlmProviderType, type LocalSetupStatus, type OpenRouterModel } from "@/lib/backend";
+import { getLocalSetupStatus, getLlmProviderModels, getModelConfig, saveModelConfig, refreshOpenRouterModels, type EffectiveModelConfig, type LlmProviderType, type LocalSetupStatus, type OpenRouterModel, type ReasoningLevel } from "@/lib/backend";
 import { SettingsPageLayout } from "@/components/settings/SettingsPageLayout";
 import { SettingsHeader } from "@/components/settings/SettingsHeader";
 import { SettingsTile } from "@/components/settings/SettingsTile";
 import { LocalCredentialsPanel } from "@/components/settings/LocalCredentialsPanel";
 import { ModelSideSheet } from "@/components/settings/ModelSideSheet";
 import { MODEL_ROLES, type ModelRole } from "@/components/settings/types";
+import { ReasoningSlider } from "@/components/settings/ReasoningSlider";
 import { SkeletonList } from "@/components/settings/Skeleton";
 import { useAppAuth } from "@/lib/app-auth";
 import { isLocalMode } from "@/lib/app-mode";
@@ -44,6 +45,8 @@ export default function ModelSettingsPage() {
   const [isSavingModel, setIsSavingModel] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [modelConfigReloadKey, setModelConfigReloadKey] = useState(0);
+  const [reasoningSupported, setReasoningSupported] = useState(true);
+  const [savingReasoningRole, setSavingReasoningRole] = useState<string | null>(null);
 
   const needsOpenRouterCache = !isLocalMode || llmProvider === "openrouter";
   const isLoading =
@@ -76,8 +79,10 @@ export default function ModelSettingsPage() {
         if (!token) throw new Error("Not authenticated");
         return getModelConfig(token);
       })
-      .then((config) => {
-        if (active) setEffectiveConfig(config);
+      .then((settings) => {
+        if (!active) return;
+        setEffectiveConfig(settings.config);
+        setReasoningSupported(settings.reasoningSupported);
       })
       .catch(() => {
         if (active) setEffectiveConfig(null);
@@ -115,7 +120,52 @@ export default function ModelSettingsPage() {
         : [];
 
   function getSelectedModel(role: ModelRole): string {
-    return effectiveConfig?.[role.key as keyof typeof effectiveConfig] ?? "";
+    return effectiveConfig?.[role.key as keyof typeof effectiveConfig]?.model ?? "";
+  }
+
+  function getRoleConfig(role: ModelRole) {
+    return effectiveConfig?.[role.key as keyof typeof effectiveConfig] ?? null;
+  }
+
+  /**
+   * Persist a reasoning level for one role. `null` clears the override so the
+   * role goes back to the provider/role default, which is why the value is sent
+   * explicitly rather than omitted — omitting a field means "leave unchanged".
+   */
+  async function saveReasoningForRole(
+    role: ModelRole,
+    level: ReasoningLevel | null,
+  ) {
+    const previous = effectiveConfig;
+    setSavingReasoningRole(role.key);
+    setSaveError(null);
+    // Optimistic: the slider should track the drag, not the round-trip.
+    setEffectiveConfig((prev) =>
+      prev
+        ? {
+            ...prev,
+            [role.key]: {
+              ...prev[role.key as keyof typeof prev],
+              ...(level ? { reasoning: level } : {}),
+              reasoningOverridden: level !== null,
+            },
+          }
+        : prev,
+    );
+    try {
+      const token = await getToken();
+      if (!token) throw new Error("Not authenticated");
+      await saveModelConfig({ [`${role.key}Reasoning`]: level }, token);
+      // Clearing needs the server's recomputed default, which we can't derive.
+      if (level === null) setModelConfigReloadKey((key) => key + 1);
+    } catch (err) {
+      setEffectiveConfig(previous);
+      setSaveError(
+        err instanceof Error ? err.message : "Failed to save reasoning effort.",
+      );
+    } finally {
+      setSavingReasoningRole(null);
+    }
   }
 
   async function saveModelForRole(role: ModelRole, modelId: string) {
@@ -128,10 +178,10 @@ export default function ModelSettingsPage() {
       const token = await getToken();
       if (!token) throw new Error("Not authenticated");
       await saveModelConfig({ [role.key]: nextModelId }, token);
-      setEffectiveConfig((prev: EffectiveModelConfig | null) =>
-        prev ? { ...prev, [role.key]: nextModelId } : null
-      );
       setActiveSheet(null);
+      // A new model can change the auto-resolved reasoning level, so re-read
+      // rather than patching the slug in place.
+      setModelConfigReloadKey((key) => key + 1);
     } catch (err) {
       setSaveError(
         err instanceof Error ? err.message : "Failed to save model preference.",
@@ -214,15 +264,32 @@ export default function ModelSettingsPage() {
           {isLoading ? (
             <SkeletonList count={MODEL_ROLES.length} />
           ) : (
-            MODEL_ROLES.map((role) => (
-              <SettingsTile
-                key={role.key}
-                label={role.label}
-                description={role.description}
-                value={getSelectedModel(role)}
-                onClick={() => openSideSheet(role)}
-              />
-            ))
+            MODEL_ROLES.map((role) => {
+              const roleConfig = getRoleConfig(role);
+              return (
+                <div key={role.key}>
+                  <SettingsTile
+                    label={role.label}
+                    description={role.description}
+                    value={getSelectedModel(role)}
+                    onClick={() => openSideSheet(role)}
+                  />
+                  {roleConfig && (
+                    <ReasoningSlider
+                      value={roleConfig.reasoning}
+                      overridden={roleConfig.reasoningOverridden}
+                      disabled={savingReasoningRole === role.key}
+                      unsupportedReason={
+                        reasoningSupported
+                          ? undefined
+                          : "This provider doesn't expose a reasoning control, so effort is left to the model's own default."
+                      }
+                      onChange={(level) => void saveReasoningForRole(role, level)}
+                    />
+                  )}
+                </div>
+              );
+            })
           )}
         </div>
       </div>

@@ -4,7 +4,7 @@ import { generateText } from "ai";
 import { datasetContextSchema, populateColumnSchema } from "../../pipeline/populate.js";
 import { convex, internal } from "../../convex.js";
 import { DEFAULT_MODEL_IDS } from "../../config/models.js";
-import { createLanguageModel } from "../../config/llm.js";
+import { REASONING_LEVELS, createLanguageModel } from "../../config/llm.js";
 import { requireLlmProviderConfig } from "../../local-credentials.js";
 import { buildPopulateAgent } from "../agents/populate.js";
 import { RunMetrics } from "../run-metrics.js";
@@ -30,13 +30,23 @@ import { getSignal } from "../../abort-registry.js";
  * fresh UUID as a fallback) without coupling this schema to a specific
  * runtime.
  */
+/**
+ * One role's resolved model plus the reasoning level it should run at. The
+ * level travels with the model so every agent built during the run uses the
+ * same setting the request resolved, rather than re-reading config mid-run.
+ */
+const modelRoleSchema = z.object({
+  model: z.string().min(1),
+  reasoning: z.enum(REASONING_LEVELS),
+});
+
 export const authContextSchema = z.object({
   authorizedUserId: z.string().min(1),
   workflowRunId: z.string().min(1),
   modelConfig: z.object({
-    schemaInference: z.string().min(1),
-    populateOrchestrator: z.string().min(1),
-    investigateSubagent: z.string().min(1),
+    schemaInference: modelRoleSchema,
+    populateOrchestrator: modelRoleSchema,
+    investigateSubagent: modelRoleSchema,
   }),
   isBenchmark: z.boolean().optional(),
 });
@@ -111,9 +121,13 @@ Respond with EXACTLY one word: scraper or search`;
     try {
       const llmConfig = await requireLlmProviderConfig();
       const modelSlug =
-        inputData.authContext?.modelConfig?.schemaInference ?? llmConfig.defaultModel ?? DEFAULT_MODEL_IDS.SCHEMA_INFERENCE;
+        inputData.authContext?.modelConfig?.schemaInference.model ?? llmConfig.defaultModel ?? DEFAULT_MODEL_IDS.SCHEMA_INFERENCE;
       const result = await generateText({
-        model: createLanguageModel(llmConfig, modelSlug),
+        model: createLanguageModel(
+          llmConfig,
+          modelSlug,
+          inputData.authContext?.modelConfig?.schemaInference.reasoning,
+        ),
         prompt: classificationPrompt,
         maxOutputTokens: 10,
         abortSignal: getSignal(inputData.datasetId),

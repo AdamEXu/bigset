@@ -1,4 +1,5 @@
-import type { LanguageModelV3 } from "@ai-sdk/provider";
+import type { JSONObject, LanguageModelV3 } from "@ai-sdk/provider";
+import { defaultSettingsMiddleware, wrapLanguageModel } from "ai";
 import { createAlibaba } from "@ai-sdk/alibaba";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createDeepInfra } from "@ai-sdk/deepinfra";
@@ -232,6 +233,277 @@ export const LLM_PROVIDER_DEFAULT_MODELS: Record<LlmProviderType, string> = {
   custom: "",
 };
 
+/**
+ * Canonical reasoning scale.
+ *
+ * Every provider exposes a different ladder — xAI has two rungs, Anthropic has
+ * five, Qwen isn't a ladder at all (a boolean plus a token budget) — so there
+ * is no shared vocabulary to pass through. We keep one 5-stop scale that the UI
+ * and stored config speak, and project it onto whatever each provider accepts
+ * in {@link reasoningProviderOptions}. Ordered weakest → strongest.
+ */
+export const REASONING_LEVELS = ["none", "low", "medium", "high", "max"] as const;
+export type ReasoningLevel = (typeof REASONING_LEVELS)[number];
+
+export function isReasoningLevel(value: unknown): value is ReasoningLevel {
+  return (
+    typeof value === "string" &&
+    (REASONING_LEVELS as readonly string[]).includes(value)
+  );
+}
+
+/**
+ * Per-provider projection of the canonical scale onto native provider options.
+ *
+ * A `null` provider has no reasoning knob we can drive (its models either don't
+ * reason or the SDK exposes no typed control), so we send nothing and let the
+ * provider's own default stand — `reasoningSupported` reports that to the UI so
+ * the control can be disabled rather than silently ignored.
+ *
+ * Where a provider's ladder is coarser than ours, several canonical levels
+ * collapse onto the same native rung; that is intended and lossless in the only
+ * direction that matters (the user's choice is never silently *raised*).
+ */
+const REASONING_PROVIDER_OPTIONS: Record<
+  LlmProviderType,
+  Record<ReasoningLevel, JSONObject> | null
+> = {
+  // none | minimal | low | medium | high | xhigh
+  openai: {
+    none: { reasoningEffort: "none" },
+    low: { reasoningEffort: "low" },
+    medium: { reasoningEffort: "medium" },
+    high: { reasoningEffort: "high" },
+    max: { reasoningEffort: "xhigh" },
+  },
+  // none | minimal | low | medium | high | xhigh
+  openrouter: {
+    none: { reasoning: { effort: "none" } },
+    low: { reasoning: { effort: "low" } },
+    medium: { reasoning: { effort: "medium" } },
+    high: { reasoning: { effort: "high" } },
+    max: { reasoning: { effort: "xhigh" } },
+  },
+  // low | medium | high | xhigh | max — adaptive thinking has no "off" rung,
+  // so "none" lands on the lowest effort the API accepts.
+  anthropic: {
+    none: { effort: "low" },
+    low: { effort: "low" },
+    medium: { effort: "medium" },
+    high: { effort: "high" },
+    max: { effort: "max" },
+  },
+  // minimal | low | medium | high
+  google: {
+    none: { thinkingConfig: { thinkingLevel: "minimal" } },
+    low: { thinkingConfig: { thinkingLevel: "low" } },
+    medium: { thinkingConfig: { thinkingLevel: "medium" } },
+    high: { thinkingConfig: { thinkingLevel: "high" } },
+    max: { thinkingConfig: { thinkingLevel: "high" } },
+  },
+  // low | high only
+  xai: {
+    none: { reasoningEffort: "low" },
+    low: { reasoningEffort: "low" },
+    medium: { reasoningEffort: "low" },
+    high: { reasoningEffort: "high" },
+    max: { reasoningEffort: "high" },
+  },
+  // low | medium | high | xhigh | max
+  deepseek: {
+    none: { reasoningEffort: "low" },
+    low: { reasoningEffort: "low" },
+    medium: { reasoningEffort: "medium" },
+    high: { reasoningEffort: "high" },
+    max: { reasoningEffort: "max" },
+  },
+  // none | high only
+  mistral: {
+    none: { reasoningEffort: "none" },
+    low: { reasoningEffort: "none" },
+    medium: { reasoningEffort: "high" },
+    high: { reasoningEffort: "high" },
+    max: { reasoningEffort: "high" },
+  },
+  // none | default | low | medium | high
+  groq: {
+    none: { reasoningEffort: "none" },
+    low: { reasoningEffort: "low" },
+    medium: { reasoningEffort: "medium" },
+    high: { reasoningEffort: "high" },
+    max: { reasoningEffort: "high" },
+  },
+  // Not a ladder: a thinking toggle plus a token budget.
+  qwen: {
+    none: { enableThinking: false },
+    low: { enableThinking: true, thinkingBudget: 1024 },
+    medium: { enableThinking: true, thinkingBudget: 4096 },
+    high: { enableThinking: true, thinkingBudget: 16384 },
+    max: { enableThinking: true, thinkingBudget: 32768 },
+  },
+  // Also a toggle plus a budget, under a `thinking` object.
+  fireworks: {
+    none: { thinking: { type: "disabled" } },
+    low: { thinking: { type: "enabled", budgetTokens: 1024 } },
+    medium: { thinking: { type: "enabled", budgetTokens: 4096 } },
+    high: { thinking: { type: "enabled", budgetTokens: 16384 } },
+    max: { thinking: { type: "enabled", budgetTokens: 32768 } },
+  },
+  // These route to OpenAI-compatible endpoints whose SDK wrappers expose no
+  // typed reasoning control. Sending an unrecognised parameter risks a 400 on
+  // strict gateways, so we leave their defaults alone.
+  togetherai: null,
+  deepinfra: null,
+  huggingface: null,
+  ollama: null,
+  lmstudio: null,
+  custom: null,
+};
+
+/**
+ * The provider-options namespace each provider reads. Usually the provider id,
+ * but Qwen is served by the Alibaba provider and keys off its own name.
+ */
+const REASONING_OPTIONS_NAMESPACE: Partial<Record<LlmProviderType, string>> = {
+  qwen: "alibaba",
+};
+
+/** Whether the reasoning control does anything for this provider. */
+export function reasoningSupported(provider: LlmProviderType): boolean {
+  return REASONING_PROVIDER_OPTIONS[provider] !== null;
+}
+
+/**
+ * Build the `providerOptions` payload for a reasoning level, or `undefined`
+ * when the provider has no knob to drive.
+ */
+export function reasoningProviderOptions(
+  provider: LlmProviderType,
+  level: ReasoningLevel,
+): Record<string, JSONObject> | undefined {
+  const projection = REASONING_PROVIDER_OPTIONS[provider];
+  if (!projection) return undefined;
+  const namespace = REASONING_OPTIONS_NAMESPACE[provider] ?? provider;
+  return { [namespace]: projection[level] };
+}
+
+/**
+ * Default reasoning per provider and role, used when a user has not chosen one.
+ *
+ * The rule is inverse to model strength: a role running a frontier model needs
+ * less deliberation to reach the same answer than the same role running a cheap
+ * one, so weaker defaults get more thinking and stronger defaults get less.
+ * Roles matter too — schema inference is one short structured call, while the
+ * orchestrator and the research subagents run long tool loops where premature
+ * termination is the common failure. These are tuned against each provider's
+ * default model in {@link LLM_PROVIDER_DEFAULT_MODELS_BY_ROLE}; when a user
+ * picks a different model they can override per role.
+ */
+export const LLM_PROVIDER_DEFAULT_REASONING_BY_ROLE: Record<
+  LlmProviderType,
+  Record<ModelRoleKey, ReasoningLevel>
+> = {
+  // Sol is strong enough to coast; Luna is cheap and needs the headroom.
+  openai: {
+    schemaInference: "low",
+    populateOrchestrator: "medium",
+    investigateSubagent: "high",
+  },
+  // Opus 5 orchestrates comfortably at medium; Sonnet 5 works harder as a
+  // subagent. Anthropic defaults to `high` everywhere, so this also trims cost.
+  anthropic: {
+    schemaInference: "low",
+    populateOrchestrator: "medium",
+    investigateSubagent: "high",
+  },
+  // 3.6 Flash defaults to high thinking on every call; dial back the cheap
+  // structured call and keep the depth where tool loops need it.
+  google: {
+    schemaInference: "low",
+    populateOrchestrator: "medium",
+    investigateSubagent: "high",
+  },
+  // Only two rungs, so anything below "high" collapses to low.
+  xai: {
+    schemaInference: "low",
+    populateOrchestrator: "high",
+    investigateSubagent: "high",
+  },
+  deepseek: {
+    schemaInference: "low",
+    populateOrchestrator: "high",
+    investigateSubagent: "high",
+  },
+  // Mistral's ladder is off/on and its models are the weakest here — leave
+  // reasoning on wherever it does real work.
+  mistral: {
+    schemaInference: "low",
+    populateOrchestrator: "high",
+    investigateSubagent: "high",
+  },
+  // gpt-oss-120b is the weakest default in the table and has no parallel tool
+  // calling, so it gets maximum deliberation on both agent roles.
+  groq: {
+    schemaInference: "medium",
+    populateOrchestrator: "high",
+    investigateSubagent: "high",
+  },
+  qwen: {
+    schemaInference: "low",
+    populateOrchestrator: "high",
+    investigateSubagent: "medium",
+  },
+  fireworks: {
+    schemaInference: "low",
+    populateOrchestrator: "high",
+    investigateSubagent: "high",
+  },
+  // No knob — recorded so every provider resolves to a concrete level and the
+  // UI has something to show if support is added later.
+  openrouter: {
+    schemaInference: "low",
+    populateOrchestrator: "medium",
+    investigateSubagent: "high",
+  },
+  togetherai: {
+    schemaInference: "low",
+    populateOrchestrator: "high",
+    investigateSubagent: "high",
+  },
+  deepinfra: {
+    schemaInference: "low",
+    populateOrchestrator: "high",
+    investigateSubagent: "high",
+  },
+  huggingface: {
+    schemaInference: "low",
+    populateOrchestrator: "high",
+    investigateSubagent: "high",
+  },
+  ollama: {
+    schemaInference: "medium",
+    populateOrchestrator: "high",
+    investigateSubagent: "high",
+  },
+  lmstudio: {
+    schemaInference: "medium",
+    populateOrchestrator: "high",
+    investigateSubagent: "high",
+  },
+  custom: {
+    schemaInference: "medium",
+    populateOrchestrator: "high",
+    investigateSubagent: "high",
+  },
+};
+
+export function defaultReasoningForLlmProviderRole(
+  provider: LlmProviderType,
+  role: ModelRoleKey,
+): ReasoningLevel {
+  return LLM_PROVIDER_DEFAULT_REASONING_BY_ROLE[provider][role];
+}
+
 export function isLlmProviderType(value: unknown): value is LlmProviderType {
   return (
     typeof value === "string" &&
@@ -386,7 +658,32 @@ export function normalizeLlmProviderInput(
   };
 }
 
+/**
+ * Build a language model for a provider config.
+ *
+ * When `reasoning` is given it is baked into the model with
+ * `defaultSettingsMiddleware`, so every caller — `generateText` and the Mastra
+ * agents alike — inherits it without threading provider options through each
+ * call site. Providers with no reasoning knob are returned unwrapped.
+ */
 export function createLanguageModel(
+  config: LlmProviderConfig,
+  modelId?: string,
+  reasoning?: ReasoningLevel,
+): LanguageModelV3 {
+  const model = createBaseLanguageModel(config, modelId);
+  if (!reasoning) return model;
+
+  const providerOptions = reasoningProviderOptions(config.provider, reasoning);
+  if (!providerOptions) return model;
+
+  return wrapLanguageModel({
+    model,
+    middleware: defaultSettingsMiddleware({ settings: { providerOptions } }),
+  });
+}
+
+function createBaseLanguageModel(
   config: LlmProviderConfig,
   modelId?: string,
 ): LanguageModelV3 {

@@ -11,9 +11,12 @@ import { FETCH_TIMEOUT_MS } from "../fetch-timeout.js";
 import {
   defaultBaseUrlForLlmProvider,
   defaultModelForLlmProviderRole,
+  defaultReasoningForLlmProviderRole,
+  isReasoningLevel,
   modelsUrlForLlmProvider,
   type LlmProviderType,
   type ModelRoleKey,
+  type ReasoningLevel,
 } from "./llm.js";
 
 export interface OpenRouterModel {
@@ -235,6 +238,23 @@ function modelForProvider(
   if (isModelCompatibleWithProvider(savedModel, provider)) return savedModel;
   if (provider?.provider) return defaultModelForLlmProviderRole(provider.provider, role);
   return envDefault;
+}
+
+/**
+ * Resolve the reasoning level for a role.
+ *
+ * A stored level is an explicit user override and always wins. Anything else —
+ * unset, or a value from an older build that is no longer on the scale — falls
+ * back to "auto", meaning the provider/role default is recomputed now. That is
+ * what makes switching a role to a weaker model raise its reasoning on its own.
+ */
+function reasoningForProvider(
+  savedLevel: string | undefined,
+  role: ModelRoleKey,
+  provider: LlmProviderType | undefined,
+): ReasoningLevel {
+  if (isReasoningLevel(savedLevel)) return savedLevel;
+  return defaultReasoningForLlmProviderRole(provider ?? "openrouter", role);
 }
 
 async function fetchJsonWithTimeout<T>(
@@ -496,54 +516,88 @@ export async function upsertModelConfig(
     schemaInference?: string;
     populateOrchestrator?: string;
     investigateSubagent?: string;
-  }
+    schemaInferenceReasoning?: string;
+    populateOrchestratorReasoning?: string;
+    investigateSubagentReasoning?: string;
+  },
+  /**
+   * Roles whose reasoning override should be removed, returning them to the
+   * provider/role default. Distinct from "not provided", which leaves the
+   * stored value untouched.
+   */
+  clearReasoning?: Partial<Record<ModelRoleKey, boolean>>,
 ): Promise<void> {
   const llmConfig = await getLlmProviderConfig();
+  const reasoning = (role: ModelRoleKey, value: string | undefined) =>
+    clearReasoning?.[role] ? null : value;
+
   await convex.mutation(internal.modelConfig.upsertInternal, {
     userId,
     provider: llmConfig?.provider ?? "openrouter",
     schemaInference: config.schemaInference ?? undefined,
     populateOrchestrator: config.populateOrchestrator ?? undefined,
     investigateSubagent: config.investigateSubagent ?? undefined,
+    schemaInferenceReasoning: reasoning(
+      "schemaInference",
+      config.schemaInferenceReasoning,
+    ),
+    populateOrchestratorReasoning: reasoning(
+      "populateOrchestrator",
+      config.populateOrchestratorReasoning,
+    ),
+    investigateSubagentReasoning: reasoning(
+      "investigateSubagent",
+      config.investigateSubagentReasoning,
+    ),
   });
 }
 
-/**
- * Fetch the model configuration for a specific user from Convex.
- * If the user has no saved config, returns the selected provider default or env defaults.
- * Callers always get a complete config — never null.
- */
+export interface ResolvedModelRole {
+  model: string;
+  reasoning: ReasoningLevel;
+  /** True when `reasoning` came from the user rather than the provider default. */
+  reasoningOverridden: boolean;
+}
+
+export type ResolvedModelConfig = Record<ModelRoleKey, ResolvedModelRole>;
+
 export async function getModelConfig(
-  userId: string
-): Promise<{
-  schemaInference: string;
-  populateOrchestrator: string;
-  investigateSubagent: string;
-}> {
+  userId: string,
+): Promise<ResolvedModelConfig> {
   const llmConfig = await getLlmProviderConfig();
   const config = await convex.query(internal.modelConfig.getInternal, {
     userId,
     provider: llmConfig?.provider ?? "openrouter",
   });
+
+  const roleDefaults: Record<ModelRoleKey, string> = {
+    schemaInference: DEFAULT_MODEL_IDS.SCHEMA_INFERENCE,
+    populateOrchestrator: DEFAULT_MODEL_IDS.POPULATE_ORCHESTRATOR,
+    investigateSubagent: DEFAULT_MODEL_IDS.INVESTIGATE_SUBAGENT,
+  };
+
+  const resolve = (role: ModelRoleKey): ResolvedModelRole => {
+    const savedReasoning = config?.[`${role}Reasoning`] as string | undefined;
+    return {
+      model: modelForProvider(
+        config?.[role] as string | undefined,
+        role,
+        roleDefaults[role],
+        llmConfig,
+      ),
+      reasoning: reasoningForProvider(
+        savedReasoning,
+        role,
+        llmConfig?.provider,
+      ),
+      reasoningOverridden: isReasoningLevel(savedReasoning),
+    };
+  };
+
   return {
-    schemaInference: modelForProvider(
-      config?.schemaInference,
-      "schemaInference",
-      DEFAULT_MODEL_IDS.SCHEMA_INFERENCE,
-      llmConfig,
-    ),
-    populateOrchestrator: modelForProvider(
-      config?.populateOrchestrator,
-      "populateOrchestrator",
-      DEFAULT_MODEL_IDS.POPULATE_ORCHESTRATOR,
-      llmConfig,
-    ),
-    investigateSubagent: modelForProvider(
-      config?.investigateSubagent,
-      "investigateSubagent",
-      DEFAULT_MODEL_IDS.INVESTIGATE_SUBAGENT,
-      llmConfig,
-    ),
+    schemaInference: resolve("schemaInference"),
+    populateOrchestrator: resolve("populateOrchestrator"),
+    investigateSubagent: resolve("investigateSubagent"),
   };
 }
 

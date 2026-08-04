@@ -40,14 +40,38 @@ export interface WorkflowResult {
 }
 
 /**
- * The effective model config — always complete, never null.
- * schemaInference / populateOrchestrator / investigateSubagent are always strings
- * (user preference or system default from env).
+ * Canonical reasoning scale, mirroring the backend. Each provider's own ladder
+ * differs (xAI has two rungs, Anthropic five, Qwen a token budget), so the UI
+ * and stored config speak this scale and the backend projects it per provider.
+ * Ordered weakest to strongest — the settings slider relies on that order.
+ */
+export const REASONING_LEVELS = ["none", "low", "medium", "high", "max"] as const;
+export type ReasoningLevel = (typeof REASONING_LEVELS)[number];
+
+export const REASONING_LEVEL_LABELS: Record<ReasoningLevel, string> = {
+  none: "None",
+  low: "Low",
+  medium: "Medium",
+  high: "High",
+  max: "Max",
+};
+
+/** One role's resolved model and the reasoning level it will run at. */
+export interface EffectiveModelRole {
+  model: string;
+  reasoning: ReasoningLevel;
+  /** False means the level came from the provider/role default, not the user. */
+  reasoningOverridden: boolean;
+}
+
+/**
+ * The effective model config — always complete, never null. Every role resolves
+ * to a concrete model and reasoning level (user preference, or system default).
  */
 export interface EffectiveModelConfig {
-  schemaInference: string;
-  populateOrchestrator: string;
-  investigateSubagent: string;
+  schemaInference: EffectiveModelRole;
+  populateOrchestrator: EffectiveModelRole;
+  investigateSubagent: EffectiveModelRole;
 }
 
 /**
@@ -58,6 +82,10 @@ export interface SavedModelConfig {
   schemaInference: string | null;
   populateOrchestrator: string | null;
   investigateSubagent: string | null;
+  /** An explicit level pins it; `null` returns the role to auto. */
+  schemaInferenceReasoning: ReasoningLevel | null;
+  populateOrchestratorReasoning: ReasoningLevel | null;
+  investigateSubagentReasoning: ReasoningLevel | null;
 }
 
 export interface OpenRouterModel {
@@ -187,7 +215,13 @@ export async function exchangeOpenRouterOAuth(
  * @param token - Clerk JWT obtained via getToken()
  * Throws if the request fails (network error, 401, 500).
  */
-export async function getModelConfig(token: string): Promise<EffectiveModelConfig> {
+export interface ModelSettings {
+  config: EffectiveModelConfig;
+  /** False when the active provider exposes no reasoning control. */
+  reasoningSupported: boolean;
+}
+
+export async function getModelConfig(token: string): Promise<ModelSettings> {
   const res = await fetch(`${BACKEND_URL}/settings/models`, {
     method: "GET",
     headers: {
@@ -203,7 +237,10 @@ export async function getModelConfig(token: string): Promise<EffectiveModelConfi
   }
 
   const data = await res.json();
-  return data.config;
+  return {
+    config: data.config,
+    reasoningSupported: data.reasoningSupported !== false,
+  };
 }
 
 /**

@@ -151,6 +151,13 @@ export default defineSchema({
     schemaInference: v.optional(v.string()),
     populateOrchestrator: v.optional(v.string()),
     investigateSubagent: v.optional(v.string()),
+    // Reasoning-effort override per role, on the canonical scale defined in
+    // the backend (none | low | medium | high | max). Absent means "auto":
+    // the provider/role default is resolved at request time, so switching a
+    // role to a weaker model raises its reasoning without user action.
+    schemaInferenceReasoning: v.optional(v.string()),
+    populateOrchestratorReasoning: v.optional(v.string()),
+    investigateSubagentReasoning: v.optional(v.string()),
   })
     .index("by_user", ["userId"])
     .index("by_user_provider", ["userId", "provider"]),

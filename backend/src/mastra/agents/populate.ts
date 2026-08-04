@@ -44,13 +44,13 @@ export function buildPopulateAgent(
   maxRowCount: number,
   metrics?: RunMetrics,
 ): Agent {
-  const modelSlug = authContext.modelConfig!.populateOrchestrator;
+  const { model: modelSlug, reasoning } = authContext.modelConfig!.populateOrchestrator;
 
   return new Agent({
     id: "populate-agent",
     name: "Dataset Populate Orchestrator",
     instructions: buildInstructions(maxRowCount),
-    model: createLanguageModel(llmConfig, modelSlug),
+    model: createLanguageModel(llmConfig, modelSlug, reasoning),
     tools: {
       search_web: searchWebTool,
       fetch_page: fetchPageTool,

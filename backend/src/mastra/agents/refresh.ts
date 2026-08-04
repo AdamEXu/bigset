@@ -56,7 +56,7 @@ export function buildRefreshAgent(
   columns: PopulateColumn[],
   llmConfig: LlmProviderConfig,
 ): Agent {
-  const modelSlug = authContext.modelConfig!.investigateSubagent;
+  const { model: modelSlug, reasoning } = authContext.modelConfig!.investigateSubagent;
   const { update_row } = buildPopulateTools(
     authorizedDatasetId,
     authContext,
@@ -65,7 +65,7 @@ export function buildRefreshAgent(
     id: "refresh-agent",
     name: "Dataset Refresh Agent",
     instructions: buildRefreshInstructions(columns),
-    model: createLanguageModel(llmConfig, modelSlug),
+    model: createLanguageModel(llmConfig, modelSlug, reasoning),
     tools: {
       update_row,
       search_web: searchWebTool,

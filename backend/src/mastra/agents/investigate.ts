@@ -60,7 +60,7 @@ export function buildInvestigateAgent(
   columns: PopulateColumn[],
   llmConfig: LlmProviderConfig,
 ): Agent {
-  const modelSlug = authContext.modelConfig!.investigateSubagent;
+  const { model: modelSlug, reasoning } = authContext.modelConfig!.investigateSubagent;
 
   const { insert_row } = buildPopulateTools(
     authorizedDatasetId,
@@ -70,7 +70,7 @@ export function buildInvestigateAgent(
     id: "investigate-agent",
     name: "Dataset Investigate Agent",
     instructions: buildInvestigateInstructions(columns),
-    model: createLanguageModel(llmConfig, modelSlug),
+    model: createLanguageModel(llmConfig, modelSlug, reasoning),
 
     tools: {
       insert_row,

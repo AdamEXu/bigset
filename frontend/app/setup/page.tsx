@@ -17,6 +17,7 @@ import {
   saveModelConfig,
   saveTinyFishApiKey,
   type EffectiveModelConfig,
+  type EffectiveModelRole,
   type LlmProviderType,
   type LocalSetupStatus,
   type OpenRouterModel,
@@ -52,11 +53,15 @@ function modelListCacheKey(status: LocalSetupStatus | null): string {
   ].join("|");
 }
 
+function emptyModelRole(): EffectiveModelRole {
+  return { model: "", reasoning: "medium", reasoningOverridden: false };
+}
+
 function emptyModelConfig(): EffectiveModelConfig {
   return {
-    schemaInference: "",
-    populateOrchestrator: "",
-    investigateSubagent: "",
+    schemaInference: emptyModelRole(),
+    populateOrchestrator: emptyModelRole(),
+    investigateSubagent: emptyModelRole(),
   };
 }
 
@@ -108,8 +113,8 @@ export default function SetupPage() {
       try {
         const token = await getToken();
         if (!token) throw new Error("Not authenticated");
-        const config = await getModelConfig(token);
-        if (active) setModelConfig(config);
+        const settings = await getModelConfig(token);
+        if (active) setModelConfig(settings.config);
       } catch (err) {
         if (!active) return;
         setModelConfig(emptyModelConfig());
@@ -166,7 +171,7 @@ export default function SetupPage() {
 
   function modelForRole(role: ModelRole): string {
     const key = role.key as keyof EffectiveModelConfig;
-    return modelConfig?.[key] ?? "";
+    return modelConfig?.[key]?.model ?? "";
   }
 
   function openModelSheet(role: ModelRole) {
