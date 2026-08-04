@@ -18,6 +18,7 @@ import {
   saveTinyFishApiKey,
   type EffectiveModelConfig,
   type EffectiveModelRole,
+  type ReasoningLevel,
   type LlmProviderType,
   type LocalSetupStatus,
   type OpenRouterModel,
@@ -40,6 +41,7 @@ import {
 import { LocalUtilityMenu } from "@/components/LocalUtilityMenu";
 import { ModelSideSheet } from "@/components/settings/ModelSideSheet";
 import { MODEL_ROLES, type ModelRole } from "@/components/settings/types";
+import { ReasoningSlider } from "@/components/settings/ReasoningSlider";
 import { useAppAuth } from "@/lib/app-auth";
 
 function modelListCacheKey(status: LocalSetupStatus | null): string {
@@ -83,6 +85,9 @@ export default function SetupPage() {
   >(null);
   const [refreshingModels, setRefreshingModels] = useState(false);
   const [savingModel, setSavingModel] = useState(false);
+  const [reasoningSupported, setReasoningSupported] = useState(true);
+  const [savingReasoningRole, setSavingReasoningRole] = useState<string | null>(null);
+  const [modelConfigReloadKey, setModelConfigReloadKey] = useState(0);
   const activeModelListCacheKeyRef = useRef("");
 
   useEffect(() => {
@@ -114,7 +119,9 @@ export default function SetupPage() {
         const token = await getToken();
         if (!token) throw new Error("Not authenticated");
         const settings = await getModelConfig(token);
-        if (active) setModelConfig(settings.config);
+        if (!active) return;
+        setModelConfig(settings.config);
+        setReasoningSupported(settings.reasoningSupported);
       } catch (err) {
         if (!active) return;
         setModelConfig(emptyModelConfig());
@@ -133,6 +140,7 @@ export default function SetupPage() {
     };
   }, [
     getToken,
+    modelConfigReloadKey,
     status?.services.llm.baseUrl,
     status?.services.llm.configured,
     status?.services.llm.provider,
@@ -193,15 +201,59 @@ export default function SetupPage() {
       setModelConfig((prev) => ({
         ...emptyModelConfig(),
         ...prev,
-        [key]: nextModelId,
+        [key]: { ...(prev?.[key] ?? emptyModelRole()), model: nextModelId },
       }));
       setActiveModelRole(null);
+      // A different model can change the auto-resolved reasoning level, so let
+      // the server recompute rather than leaving the previous model's level.
+      setModelConfigReloadKey((current) => current + 1);
     } catch (err) {
       setModelError(
         err instanceof Error ? err.message : "Failed to save model",
       );
     } finally {
       setSavingModel(false);
+    }
+  }
+
+  /**
+   * Persist a reasoning level for one role. `null` clears the override so the
+   * role returns to the provider/role default — sent explicitly, since an
+   * omitted field means "leave unchanged".
+   */
+  async function saveReasoningForRole(
+    role: ModelRole,
+    level: ReasoningLevel | null,
+  ) {
+    const key = role.key as keyof EffectiveModelConfig;
+    const previous = modelConfig;
+    setSavingReasoningRole(role.key);
+    setModelError(null);
+    setModelConfig((prev) =>
+      prev
+        ? {
+            ...prev,
+            [key]: {
+              ...prev[key],
+              ...(level ? { reasoning: level } : {}),
+              reasoningOverridden: level !== null,
+            },
+          }
+        : prev,
+    );
+    try {
+      const token = await getToken();
+      if (!token) throw new Error("Not authenticated");
+      await saveModelConfig({ [`${key}Reasoning`]: level }, token);
+      // Clearing needs the server's recomputed default, which we can't derive.
+      if (level === null) setModelConfigReloadKey((current) => current + 1);
+    } catch (err) {
+      setModelConfig(previous);
+      setModelError(
+        err instanceof Error ? err.message : "Failed to save reasoning effort",
+      );
+    } finally {
+      setSavingReasoningRole(null);
     }
   }
 
@@ -311,28 +363,50 @@ export default function SetupPage() {
               <div className="divide-y divide-border">
                 {MODEL_ROLES.map((role) => {
                   const selectedModel = modelForRole(role);
+                  const roleConfig =
+                    modelConfig?.[role.key as keyof EffectiveModelConfig] ?? null;
                   return (
-                    <button
-                      key={role.key}
-                      type="button"
-                      onClick={() => openModelSheet(role)}
-                      disabled={loadingModelConfig || savingModel}
-                      className="flex w-full items-center justify-between gap-5 px-5 py-4 text-left transition-colors hover:bg-foreground/[0.03] disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      <span>
-                        <span className="block text-sm font-semibold text-foreground">
-                          {role.label}
+                    <div key={role.key}>
+                      <button
+                        type="button"
+                        onClick={() => openModelSheet(role)}
+                        disabled={loadingModelConfig || savingModel}
+                        className="flex w-full items-center justify-between gap-5 px-5 pt-4 pb-3 text-left transition-colors hover:bg-foreground/[0.03] disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <span>
+                          <span className="block text-sm font-semibold text-foreground">
+                            {role.label}
+                          </span>
+                          <span className="mt-1 block text-xs leading-5 text-muted">
+                            {role.description}
+                          </span>
                         </span>
-                        <span className="mt-1 block text-xs leading-5 text-muted">
-                          {role.description}
+                        <span className="min-w-0 max-w-[45%] truncate text-right text-sm font-medium text-foreground">
+                          {loadingModelConfig
+                            ? "Loading..."
+                            : selectedModel || "Choose model"}
                         </span>
-                      </span>
-                      <span className="min-w-0 max-w-[45%] truncate text-right text-sm font-medium text-foreground">
-                        {loadingModelConfig
-                          ? "Loading..."
-                          : selectedModel || "Choose model"}
-                      </span>
-                    </button>
+                      </button>
+                      {roleConfig && (
+                        <div className="px-5">
+                          <ReasoningSlider
+                            value={roleConfig.reasoning}
+                            overridden={roleConfig.reasoningOverridden}
+                            disabled={
+                              savingModel || savingReasoningRole === role.key
+                            }
+                            unsupportedReason={
+                              reasoningSupported
+                                ? undefined
+                                : "This provider doesn't expose a reasoning control, so effort is left to the model's own default."
+                            }
+                            onChange={(level) =>
+                              void saveReasoningForRole(role, level)
+                            }
+                          />
+                        </div>
+                      )}
+                    </div>
                   );
                 })}
               </div>
