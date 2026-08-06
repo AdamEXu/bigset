@@ -41,7 +41,7 @@ import {
 import { LocalUtilityMenu } from "@/components/LocalUtilityMenu";
 import { ModelSideSheet } from "@/components/settings/ModelSideSheet";
 import { MODEL_ROLES, type ModelRole } from "@/components/settings/types";
-import { ReasoningSlider } from "@/components/settings/ReasoningSlider";
+import { ReasoningControl } from "@/components/settings/ReasoningControl";
 import { useAppAuth } from "@/lib/app-auth";
 
 function modelListCacheKey(status: LocalSetupStatus | null): string {
@@ -389,7 +389,7 @@ export default function SetupPage() {
                       </button>
                       {roleConfig && (
                         <div className="px-5">
-                          <ReasoningSlider
+                          <ReasoningControl
                             value={roleConfig.reasoning}
                             overridden={roleConfig.reasoningOverridden}
                             disabled={

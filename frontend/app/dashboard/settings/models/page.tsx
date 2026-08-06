@@ -10,7 +10,7 @@ import { SettingsTile } from "@/components/settings/SettingsTile";
 import { LocalCredentialsPanel } from "@/components/settings/LocalCredentialsPanel";
 import { ModelSideSheet } from "@/components/settings/ModelSideSheet";
 import { MODEL_ROLES, type ModelRole } from "@/components/settings/types";
-import { ReasoningSlider } from "@/components/settings/ReasoningSlider";
+import { ReasoningControl } from "@/components/settings/ReasoningControl";
 import { SkeletonList } from "@/components/settings/Skeleton";
 import { useAppAuth } from "@/lib/app-auth";
 import { isLocalMode } from "@/lib/app-mode";
@@ -139,7 +139,7 @@ export default function ModelSettingsPage() {
     const previous = effectiveConfig;
     setSavingReasoningRole(role.key);
     setSaveError(null);
-    // Optimistic: the slider should track the drag, not the round-trip.
+    // Optimistic: the control should track the click, not the round-trip.
     setEffectiveConfig((prev) =>
       prev
         ? {
@@ -179,8 +179,8 @@ export default function ModelSettingsPage() {
       if (!token) throw new Error("Not authenticated");
       await saveModelConfig({ [role.key]: nextModelId }, token);
       setActiveSheet(null);
-      // A new model can change the auto-resolved reasoning level, so re-read
-      // rather than patching the slug in place.
+      // A new model can change the default reasoning level, so re-read rather
+      // than patching the slug in place.
       setModelConfigReloadKey((key) => key + 1);
     } catch (err) {
       setSaveError(
@@ -260,14 +260,17 @@ export default function ModelSettingsPage() {
           }
         />
 
-        <div className="space-y-2">
+        <div className="space-y-3">
           {isLoading ? (
             <SkeletonList count={MODEL_ROLES.length} />
           ) : (
             MODEL_ROLES.map((role) => {
               const roleConfig = getRoleConfig(role);
               return (
-                <div key={role.key}>
+                <div
+                  key={role.key}
+                  className="overflow-hidden rounded-xl border border-border bg-surface"
+                >
                   <SettingsTile
                     label={role.label}
                     description={role.description}
@@ -275,17 +278,22 @@ export default function ModelSettingsPage() {
                     onClick={() => openSideSheet(role)}
                   />
                   {roleConfig && (
-                    <ReasoningSlider
-                      value={roleConfig.reasoning}
-                      overridden={roleConfig.reasoningOverridden}
-                      disabled={savingReasoningRole === role.key}
-                      unsupportedReason={
-                        reasoningSupported
-                          ? undefined
-                          : "This provider doesn't expose a reasoning control, so effort is left to the model's own default."
-                      }
-                      onChange={(level) => void saveReasoningForRole(role, level)}
-                    />
+                    <>
+                      <div className="mx-4 border-t border-border" />
+                      <div className="px-4">
+                        <ReasoningControl
+                          value={roleConfig.reasoning}
+                          overridden={roleConfig.reasoningOverridden}
+                          disabled={savingReasoningRole === role.key}
+                          unsupportedReason={
+                            reasoningSupported
+                              ? undefined
+                              : "This provider doesn't expose a reasoning control, so effort is left to the model's own default."
+                          }
+                          onChange={(level) => void saveReasoningForRole(role, level)}
+                        />
+                      </div>
+                    </>
                   )}
                 </div>
               );
