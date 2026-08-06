@@ -203,7 +203,7 @@ export const LLM_PROVIDER_OPTIONS: LlmProviderOption[] = [
     authLabel: "API key",
     defaultModel: "accounts/fireworks/models/deepseek-v4-flash",
     apiKeyPlaceholder: "fw_...",
-    helperHref: "https://fireworks.ai/account/api-keys",
+    helperHref: "https://app.fireworks.ai/settings/users/api-keys",
     iconSrc: "/logos/providers/fireworks-ai.svg",
   },
   {
