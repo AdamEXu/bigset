@@ -7,6 +7,7 @@ import type { PopulateColumn } from "../../pipeline/populate.js";
 import type { RunMetrics } from "../run-metrics.js";
 import { getSignal } from "../../abort-registry.js";
 import type { LlmProviderConfig } from "../../config/llm.js";
+import { tryRowExtractor } from "../../row-extractors/try-row-extractor.js";
 
 const keyValueSchema = z.object({
   column: z.string().min(1),
@@ -104,6 +105,42 @@ export function buildSubagentTool(
         }
 
         if (metrics) metrics.investigateCalls++;
+
+        const extractorResult = await tryRowExtractor({
+          datasetId: authorizedDatasetId,
+          columns,
+          primaryKeys: Object.fromEntries(
+            primary_keys.map(({ column, value }) => [column, value]),
+          ),
+          urls,
+          context,
+        });
+        if (extractorResult.status === "inserted") {
+          if (metrics) metrics.rowsInserted++;
+          console.log(
+            `[run_subagent] row extractor inserted entity="${entity_hint}" reason="${extractorResult.reason}"`,
+          );
+          return {
+            inserted: true,
+            reason: extractorResult.reason,
+            row_summary: extractorResult.rowSummary,
+            clues: undefined,
+          };
+        }
+        if (/duplicate/i.test(extractorResult.reason)) {
+          return {
+            inserted: false,
+            reason: extractorResult.reason,
+            row_summary: undefined,
+            clues: undefined,
+          };
+        }
+        if (extractorResult.status === "failed") {
+          console.warn(
+            `[run_subagent] row extractor failed entity="${entity_hint}" reason="${extractorResult.reason}"`,
+          );
+        }
+
         console.log(
           `[run_subagent] spawning subagent user=${authContext.authorizedUserId} run=${authContext.workflowRunId} dataset=${authorizedDatasetId} entity="${entity_hint}" pk=${JSON.stringify(primary_keys)}`,
         );
